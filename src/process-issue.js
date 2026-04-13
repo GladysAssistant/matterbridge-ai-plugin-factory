@@ -297,6 +297,21 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     // Fetch latest and create branch from main
     execSync("git fetch origin main", { cwd: repoRoot, stdio: "inherit" });
 
+    // Resolve absolute paths and save copies to temp location
+    const absPluginDir = path.resolve(pluginDir);
+    const absArtifactPath = path.resolve(artifactPath);
+    const artifactName = path.basename(artifactPath);
+
+    // Copy to temp location before switching branches
+    const tempDir = path.join(repoRoot, ".tmp-publish");
+    const tempPluginDir = path.join(tempDir, pluginName);
+    const tempArtifactPath = path.join(tempDir, artifactName);
+
+    await fs.mkdir(tempDir, { recursive: true });
+    execSync(`cp -r "${absPluginDir}" "${tempDir}/"`, { stdio: "inherit" });
+    execSync(`cp "${absArtifactPath}" "${tempDir}/"`, { stdio: "inherit" });
+    console.log("   Copied files to temp location");
+
     // Make sure we're on main first
     execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
 
@@ -313,11 +328,6 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
-    // Resolve absolute paths
-    const absPluginDir = path.resolve(pluginDir);
-    const absArtifactPath = path.resolve(artifactPath);
-    const artifactName = path.basename(artifactPath);
-
     // Target directories in repo
     const repoPluginDir = path.join(
       repoRoot,
@@ -330,35 +340,30 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
       `issue-${issueNumber}`,
     );
 
-    // Create directories
+    // Create directories and copy from temp
     await fs.mkdir(repoPluginDir, { recursive: true });
     await fs.mkdir(repoArtifactDir, { recursive: true });
 
-    // Only copy if source and destination are different
-    const destPluginDir = path.join(repoPluginDir, pluginName);
-    const destArtifactPath = path.join(repoArtifactDir, artifactName);
-
-    if (absPluginDir !== path.resolve(destPluginDir)) {
-      execSync(`cp -r "${absPluginDir}" "${repoPluginDir}/"`, {
-        stdio: "inherit",
-      });
-    } else {
-      console.log("   Plugin already in place, skipping copy");
-    }
-
-    if (absArtifactPath !== path.resolve(destArtifactPath)) {
-      execSync(`cp "${absArtifactPath}" "${repoArtifactDir}/"`, {
-        stdio: "inherit",
-      });
-    } else {
-      console.log("   Artifact already in place, skipping copy");
-    }
-
-    // Add and commit (force to override .gitignore)
-    execSync("git add -f plugins/ artifacts/", {
-      cwd: repoRoot,
+    execSync(`cp -r "${tempPluginDir}" "${repoPluginDir}/"`, {
       stdio: "inherit",
     });
+    execSync(`cp "${tempArtifactPath}" "${repoArtifactDir}/"`, {
+      stdio: "inherit",
+    });
+    console.log("   Copied files to branch");
+
+    // Clean up temp
+    execSync(`rm -rf "${tempDir}"`, { stdio: "inherit" });
+
+    // Add plugin and artifact files (force to override .gitignore)
+    execSync(
+      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber}`,
+      {
+        cwd: repoRoot,
+        stdio: "inherit",
+      },
+    );
+
     execSync(
       `git commit -m "feat: Add ${pluginName} for issue #${issueNumber}"`,
       { cwd: repoRoot, stdio: "inherit" },
