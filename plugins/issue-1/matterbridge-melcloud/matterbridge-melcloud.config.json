@@ -1,0 +1,8 @@
+{
+  "name": "MELCloud",
+  "type": "DynamicPlatform",
+  "username": "",
+  "password": "",
+  "pollingInterval": 60,
+  "debug": false
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MELCloud Plugin Configuration",
+  "description": "Configuration for the matterbridge-melcloud plugin",
+  "type": "object",
+  "required": ["username", "password"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Plugin name",
+      "description": "Display name for this plugin instance",
+      "default": "MELCloud"
+    },
+    "type": {
+      "type": "string",
+      "title": "Platform type",
+      "default": "DynamicPlatform"
+    },
+    "username": {
+      "type": "string",
+      "title": "MELCloud username",
+      "description": "Your Mitsubishi MELCloud account e-mail address",
+      "format": "email",
+      "x-schema-form": {
+        "type": "email",
+        "placeholder": "user@example.com"
+      }
+    },
+    "password": {
+      "type": "string",
+      "title": "MELCloud password",
+      "description": "Your Mitsubishi MELCloud account password",
+      "x-schema-form": {
+        "type": "password"
+      }
+    },
+    "pollingInterval": {
+      "type": "integer",
+      "title": "Polling interval (seconds)",
+      "description": "How often to poll MELCloud for device state updates. Minimum: 30 s.",
+      "default": 60,
+      "minimum": 30,
+      "maximum": 3600
+    },
+    "debug": {
+      "type": "boolean",
+      "title": "Debug logging",
+      "description": "Enable verbose debug output in the Matterbridge log",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

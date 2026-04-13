@@ -1,0 +1,71 @@
+{
+  "name": "matterbridge-melcloud",
+  "version": "1.0.0",
+  "description": "Matterbridge plugin for Mitsubishi Electric MELCloud air-conditioning units",
+  "keywords": [
+    "matterbridge",
+    "matter",
+    "smart-home",
+    "mitsubishi",
+    "melcloud",
+    "air-conditioning",
+    "hvac",
+    "thermostat"
+  ],
+  "author": "Matterbridge Plugin Factory",
+  "license": "MIT",
+  "homepage": "https://github.com/your-org/matterbridge-melcloud",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/matterbridge-melcloud.git"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "matterbridge-melcloud.config.json",
+    "matterbridge-melcloud.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "watch": "tsc --project tsconfig.json --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "matterbridge": ">=1.6.0",
+    "node-ansi-logger": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "matterbridge": {
+    "type": "DynamicPlatform",
+    "name": "MELCloud",
+    "description": "Controls Mitsubishi Electric MELCloud air-conditioning units via Matter",
+    "version": "1.0.0",
+    "author": "Matterbridge Plugin Factory",
+    "help": "https://github.com/your-org/matterbridge-melcloud#readme",
+    "configJsonForm": "matterbridge-melcloud.schema.json",
+    "configJson": "matterbridge-melcloud.config.json",
+    "whiteList": [],
+    "blackList": []
+  }
+}
