@@ -297,6 +297,9 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     // Fetch latest and create branch from main
     execSync("git fetch origin main", { cwd: repoRoot, stdio: "inherit" });
 
+    // Make sure we're on main first
+    execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
+
     // Delete local branch if exists
     try {
       execSync(`git branch -D ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
