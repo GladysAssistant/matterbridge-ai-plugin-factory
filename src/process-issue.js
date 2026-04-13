@@ -416,12 +416,21 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     });
     console.log("   Copied files to branch");
 
+    // Remove node_modules before committing
+    const destNodeModules = path.join(
+      repoPluginDir,
+      pluginName,
+      "node_modules",
+    );
+    execSync(`rm -rf "${destNodeModules}"`, { stdio: "pipe" });
+    console.log("   Removed node_modules");
+
     // Clean up temp
     execSync(`rm -rf "${tempDir}"`, { stdio: "inherit" });
 
-    // Add plugin and artifact files (force to override .gitignore)
+    // Add plugin and artifact files (force to override .gitignore, exclude node_modules)
     execSync(
-      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber}`,
+      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber} -- ':!**/node_modules/**'`,
       {
         cwd: repoRoot,
         stdio: "inherit",
