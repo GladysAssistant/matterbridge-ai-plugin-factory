@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "📚 Matterbridge Documentation"
+    url: "https://github.com/Luligu/matterbridge"
+    about: "Learn more about Matterbridge and how plugins work"
+  - name: "💬 Discussions"
+    url: "https://github.com/YOUR_USERNAME/matterbridge-ai-plugin-factory/discussions"
+    about: "Ask questions or discuss plugin ideas before submitting a request"
