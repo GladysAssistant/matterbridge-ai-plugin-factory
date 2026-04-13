@@ -223,9 +223,9 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           ],
           {
             cwd: workDir,
+            stdio: ["ignore", "pipe", "pipe"], // ignore stdin, pipe stdout/stderr
             env: {
               ...process.env,
-              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
             },
           },
         );
