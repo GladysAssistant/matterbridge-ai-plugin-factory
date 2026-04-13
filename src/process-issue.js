@@ -400,36 +400,55 @@ async function buildPlugin(issueNumber, pluginName) {
 
   await fs.mkdir(artifactDir, { recursive: true });
 
-  return new Promise((resolve, reject) => {
-    // Install dependencies and build
-    const npm = spawn("npm", ["install"], { cwd: pluginDir });
+  // Use shell: true to ensure npm is found in PATH
+  const spawnOptions = { cwd: pluginDir, shell: true, stdio: "inherit" };
 
+  return new Promise((resolve, reject) => {
+    console.log("   Running npm install...");
+    const npm = spawn("npm", ["install"], spawnOptions);
+
+    npm.on("error", (err) =>
+      reject(new Error(`npm install error: ${err.message}`)),
+    );
     npm.on("close", (installCode) => {
       if (installCode !== 0) {
-        reject(new Error("npm install failed"));
+        reject(new Error(`npm install failed with code ${installCode}`));
         return;
       }
 
-      // Run TypeScript build
-      const build = spawn("npm", ["run", "build"], { cwd: pluginDir });
+      console.log("   Running npm run build...");
+      const build = spawn("npm", ["run", "build"], spawnOptions);
 
+      build.on("error", (err) =>
+        reject(new Error(`npm build error: ${err.message}`)),
+      );
       build.on("close", (buildCode) => {
         if (buildCode !== 0) {
-          reject(new Error("npm build failed"));
+          reject(new Error(`npm build failed with code ${buildCode}`));
           return;
         }
 
-        // Create tarball
-        const pack = spawn("npm", ["pack"], { cwd: pluginDir });
+        console.log("   Running npm pack...");
+        const pack = spawn("npm", ["pack"], { cwd: pluginDir, shell: true });
 
+        let packOutput = "";
+        pack.stdout?.on("data", (data) => {
+          packOutput += data.toString();
+        });
+
+        pack.on("error", (err) =>
+          reject(new Error(`npm pack error: ${err.message}`)),
+        );
         pack.on("close", (packCode) => {
           if (packCode !== 0) {
-            reject(new Error("npm pack failed"));
+            reject(new Error(`npm pack failed with code ${packCode}`));
             return;
           }
 
-          // Move tarball to artifacts
-          const tarball = `${pluginName}-1.0.0.tgz`;
+          // Get tarball name from npm pack output or use default
+          const tarball = packOutput.trim() || `${pluginName}-1.0.0.tgz`;
+          console.log(`   Created tarball: ${tarball}`);
+
           fs.rename(
             path.join(pluginDir, tarball),
             path.join(artifactDir, tarball),
