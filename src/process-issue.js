@@ -310,26 +310,46 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
-    // Create plugins directory in repo if needed
+    // Resolve absolute paths
+    const absPluginDir = path.resolve(pluginDir);
+    const absArtifactPath = path.resolve(artifactPath);
+    const artifactName = path.basename(artifactPath);
+
+    // Target directories in repo
     const repoPluginDir = path.join(
       repoRoot,
       "plugins",
       `issue-${issueNumber}`,
     );
-    await fs.mkdir(repoPluginDir, { recursive: true });
-
-    // Copy plugin source to repo
-    execSync(`cp -r ${pluginDir} ${repoPluginDir}/`, { stdio: "inherit" });
-
-    // Copy artifact
-    const artifactName = path.basename(artifactPath);
     const repoArtifactDir = path.join(
       repoRoot,
       "artifacts",
       `issue-${issueNumber}`,
     );
+
+    // Create directories
+    await fs.mkdir(repoPluginDir, { recursive: true });
     await fs.mkdir(repoArtifactDir, { recursive: true });
-    execSync(`cp ${artifactPath} ${repoArtifactDir}/`, { stdio: "inherit" });
+
+    // Only copy if source and destination are different
+    const destPluginDir = path.join(repoPluginDir, pluginName);
+    const destArtifactPath = path.join(repoArtifactDir, artifactName);
+
+    if (absPluginDir !== path.resolve(destPluginDir)) {
+      execSync(`cp -r "${absPluginDir}" "${repoPluginDir}/"`, {
+        stdio: "inherit",
+      });
+    } else {
+      console.log("   Plugin already in place, skipping copy");
+    }
+
+    if (absArtifactPath !== path.resolve(destArtifactPath)) {
+      execSync(`cp "${absArtifactPath}" "${repoArtifactDir}/"`, {
+        stdio: "inherit",
+      });
+    } else {
+      console.log("   Artifact already in place, skipping copy");
+    }
 
     // Add and commit (force to override .gitignore)
     execSync("git add -f plugins/ artifacts/", {
