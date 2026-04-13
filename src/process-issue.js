@@ -867,12 +867,35 @@ async function publishOnly(issueNumber) {
     const artifactPath = path.join(artifactDir, tgzFile);
     console.log(`Found artifact: ${artifactPath}`);
 
-    // Publish to branch
-    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
-      issueNumber,
-      pluginName,
-      artifactPath,
-    );
+    // Publish to branch (use fix method to commit to existing branch if it exists)
+    const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
+    let publishResult;
+
+    // Check if branch already exists on remote
+    const repoRoot = path.resolve(__dirname, "..");
+    try {
+      execSync(`git ls-remote --exit-code origin ${branchName}`, {
+        cwd: repoRoot,
+        stdio: "pipe",
+      });
+      // Branch exists, use fix method
+      console.log(`   Branch ${branchName} exists, updating...`);
+      publishResult = await publishFixToBranch(
+        issueNumber,
+        pluginName,
+        artifactPath,
+      );
+    } catch {
+      // Branch doesn't exist, create new
+      console.log(`   Branch ${branchName} doesn't exist, creating...`);
+      publishResult = await publishPluginToBranch(
+        issueNumber,
+        pluginName,
+        artifactPath,
+      );
+    }
+
+    const { artifactUrl, branchUrl } = publishResult;
 
     // Post comment with download link
     await postComment(
