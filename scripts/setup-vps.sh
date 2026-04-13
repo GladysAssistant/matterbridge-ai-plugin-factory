@@ -57,8 +57,12 @@ cd /opt/matterbridge-factory
 if [ -d ".git" ]; then
     git pull
 else
-    git clone https://github.com/YOUR_USERNAME/matterbridge-ai-plugin-factory.git .
+    git clone https://github.com/GladysAssistant/matterbridge-ai-plugin-factory.git .
 fi
+
+# Configure git credential helper to use PAT from .env
+echo "🔐 Configuring git credentials..."
+git config credential.helper store
 
 # Install dependencies
 echo "📦 Installing factory dependencies..."
