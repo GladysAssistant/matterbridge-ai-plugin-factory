@@ -465,6 +465,98 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
 }
 
 /**
+ * Publish a fix to an existing plugin branch (commits directly to the branch)
+ */
+async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
+  const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
+  const repoRoot = path.resolve(__dirname, "..");
+  const artifactName = path.basename(artifactPath);
+
+  console.log(`📤 Committing fix to branch: ${branchName}`);
+
+  try {
+    // Configure git user if not set
+    try {
+      execSync("git config user.email", { cwd: repoRoot, stdio: "pipe" });
+    } catch {
+      execSync('git config user.email "ai-factory@matterbridge.local"', {
+        cwd: repoRoot,
+      });
+      execSync('git config user.name "Matterbridge AI Factory"', {
+        cwd: repoRoot,
+      });
+    }
+
+    // Checkout the existing plugin branch
+    execSync(`git fetch origin ${branchName}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+    execSync(`git checkout ${branchName}`, { cwd: repoRoot, stdio: "inherit" });
+
+    // Pull latest changes
+    execSync(`git pull origin ${branchName}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Copy updated artifact
+    const repoArtifactDir = path.join(
+      repoRoot,
+      "artifacts",
+      `issue-${issueNumber}`,
+    );
+    await fs.mkdir(repoArtifactDir, { recursive: true });
+    execSync(`cp "${path.resolve(artifactPath)}" "${repoArtifactDir}/"`, {
+      stdio: "inherit",
+    });
+
+    // Remove node_modules before committing
+    const pluginNodeModules = path.join(
+      repoRoot,
+      "plugins",
+      `issue-${issueNumber}`,
+      pluginName,
+      "node_modules",
+    );
+    execSync(`rm -rf "${pluginNodeModules}"`, { stdio: "pipe" });
+
+    // Add all changes
+    execSync(
+      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber}`,
+      {
+        cwd: repoRoot,
+        stdio: "inherit",
+      },
+    );
+
+    // Commit the fix
+    execSync(`git commit -m "fix: Update ${pluginName} based on feedback"`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Push to branch
+    execSync(`git push origin ${branchName}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Switch back to main
+    execSync("git checkout main", { cwd: repoRoot, stdio: "inherit" });
+
+    const artifactUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${branchName}/artifacts/issue-${issueNumber}/${artifactName}`;
+    const branchUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${branchName}`;
+
+    console.log(`✅ Fix published to: ${branchUrl}`);
+    return { artifactUrl, branchUrl, branchName };
+  } catch (error) {
+    console.error("Failed to publish fix:", error.message);
+    throw error;
+  }
+}
+
+/**
  * Build the plugin and create artifacts
  */
 async function buildPlugin(issueNumber, pluginName) {
@@ -908,9 +1000,9 @@ I'll post an updated plugin when ready.
     const artifactPath = await buildPlugin(issueNumber, pluginName);
     console.log(`✅ Plugin rebuilt: ${artifactPath}`);
 
-    // Publish updated version
-    console.log("📤 Publishing updated plugin...");
-    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
+    // Publish fix to existing branch
+    console.log("📤 Publishing fix to branch...");
+    const { artifactUrl, branchUrl, branchName } = await publishFixToBranch(
       issueNumber,
       pluginName,
       artifactPath,
