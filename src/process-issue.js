@@ -7,7 +7,7 @@
 require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
-const { spawn } = require("child_process");
+const { spawn, execSync } = require("child_process");
 const fs = require("fs").promises;
 const path = require("path");
 
@@ -270,6 +270,100 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
 }
 
 /**
+ * Push plugin to a branch and return the download URL
+ */
+async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
+  const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
+  const pluginDir = path.join(PLUGINS_DIR, `issue-${issueNumber}`, pluginName);
+
+  console.log(`📤 Publishing plugin to branch: ${branchName}`);
+
+  try {
+    // Get the repo root directory
+    const repoRoot = path.resolve(__dirname, "..");
+
+    // Configure git user if not set
+    try {
+      execSync("git config user.email", { cwd: repoRoot, stdio: "pipe" });
+    } catch {
+      execSync('git config user.email "ai-factory@matterbridge.local"', {
+        cwd: repoRoot,
+      });
+      execSync('git config user.name "Matterbridge AI Factory"', {
+        cwd: repoRoot,
+      });
+    }
+
+    // Fetch latest and create branch from main
+    execSync("git fetch origin main", { cwd: repoRoot, stdio: "inherit" });
+
+    // Delete local branch if exists
+    try {
+      execSync(`git branch -D ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
+    } catch {
+      // Branch doesn't exist, that's fine
+    }
+
+    // Create new branch from main
+    execSync(`git checkout -b ${branchName} origin/main`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Create plugins directory in repo if needed
+    const repoPluginDir = path.join(
+      repoRoot,
+      "plugins",
+      `issue-${issueNumber}`,
+    );
+    await fs.mkdir(repoPluginDir, { recursive: true });
+
+    // Copy plugin source to repo
+    execSync(`cp -r ${pluginDir} ${repoPluginDir}/`, { stdio: "inherit" });
+
+    // Copy artifact
+    const artifactName = path.basename(artifactPath);
+    const repoArtifactDir = path.join(
+      repoRoot,
+      "artifacts",
+      `issue-${issueNumber}`,
+    );
+    await fs.mkdir(repoArtifactDir, { recursive: true });
+    execSync(`cp ${artifactPath} ${repoArtifactDir}/`, { stdio: "inherit" });
+
+    // Add and commit (force to override .gitignore)
+    execSync("git add -f plugins/ artifacts/", {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+    execSync(
+      `git commit -m "feat: Add ${pluginName} for issue #${issueNumber}"`,
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+
+    // Push branch
+    execSync(`git push -f origin ${branchName}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Switch back to main
+    execSync("git checkout main", { cwd: repoRoot, stdio: "inherit" });
+
+    // Return the raw download URL for the artifact
+    const artifactUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${branchName}/artifacts/issue-${issueNumber}/${artifactName}`;
+    const branchUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${branchName}`;
+
+    console.log(`✅ Plugin published to: ${branchUrl}`);
+
+    return { artifactUrl, branchUrl, branchName };
+  } catch (error) {
+    console.error("Failed to publish plugin to branch:", error.message);
+    throw error;
+  }
+}
+
+/**
  * Build the plugin and create artifacts
  */
 async function buildPlugin(issueNumber, pluginName) {
@@ -403,9 +497,19 @@ I'll post the plugin code and testing instructions when ready.
     await runClaudeCodeCLI(issueNumber, prompt, workDir);
 
     // Build the plugin
+    console.log("📦 Building plugin...");
     const artifactPath = await buildPlugin(issueNumber, pluginName);
+    console.log(`✅ Plugin built: ${artifactPath}`);
 
-    // Post success comment
+    // Publish to branch
+    console.log("📤 Publishing plugin to GitHub...");
+    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
+
+    // Post success comment with download link
     await postComment(
       issueNumber,
       `## ✅ Plugin Ready for Testing
@@ -415,17 +519,26 @@ Your Matterbridge plugin has been created!
 ### Plugin Details
 - **Name:** \`${pluginName}\`
 - **Version:** 1.0.0
+- **Branch:** [\`${branchName}\`](${branchUrl})
 
 ### Installation
 
-Download the artifact and install:
+**Option 1: Direct download**
 \`\`\`bash
+curl -L -o ${pluginName}-1.0.0.tgz "${artifactUrl}"
 npm install ./${pluginName}-1.0.0.tgz
 \`\`\`
 
-### Artifacts
+**Option 2: Install from GitHub**
+\`\`\`bash
+npm install ${artifactUrl}
+\`\`\`
 
-📦 The plugin artifact is available in the GitHub Actions artifacts for this issue.
+### 📦 [Download Plugin Artifact](${artifactUrl})
+
+### Source Code
+
+Browse the plugin source code: [${branchName}](${branchUrl}/plugins/issue-${issueNumber}/${pluginName})
 
 ### Feedback Requested
 
@@ -496,12 +609,120 @@ async function processNewIssues() {
   }
 }
 
+/**
+ * Publish an existing plugin without regenerating
+ */
+async function publishOnly(issueNumber) {
+  console.log(`📤 Publishing existing plugin for issue #${issueNumber}...`);
+
+  try {
+    // Get issue data for plugin name
+    const { data: issue } = await octokit.issues.get({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      issue_number: issueNumber,
+    });
+
+    const parsedData = parseIssueBody(issue.body || "");
+    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginDir = path.join(
+      PLUGINS_DIR,
+      `issue-${issueNumber}`,
+      pluginName,
+    );
+    const artifactDir = path.join(ARTIFACTS_DIR, `issue-${issueNumber}`);
+
+    // Check if plugin exists
+    try {
+      await fs.access(pluginDir);
+    } catch {
+      console.error(`❌ Plugin directory not found: ${pluginDir}`);
+      console.log("Run without --publish-only to generate the plugin first.");
+      process.exit(1);
+    }
+
+    // Find artifact
+    const files = await fs.readdir(artifactDir);
+    const tgzFile = files.find((f) => f.endsWith(".tgz"));
+    if (!tgzFile) {
+      console.error(`❌ No .tgz artifact found in: ${artifactDir}`);
+      process.exit(1);
+    }
+
+    const artifactPath = path.join(artifactDir, tgzFile);
+    console.log(`Found artifact: ${artifactPath}`);
+
+    // Publish to branch
+    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
+
+    // Post comment with download link
+    await postComment(
+      issueNumber,
+      `## ✅ Plugin Ready for Testing
+
+Your Matterbridge plugin has been created!
+
+### Plugin Details
+- **Name:** \`${pluginName}\`
+- **Version:** 1.0.0
+- **Branch:** [\`${branchName}\`](${branchUrl})
+
+### Installation
+
+**Option 1: Direct download**
+\`\`\`bash
+curl -L -o ${pluginName}-1.0.0.tgz "${artifactUrl}"
+npm install ./${pluginName}-1.0.0.tgz
+\`\`\`
+
+**Option 2: Install from GitHub**
+\`\`\`bash
+npm install ${artifactUrl}
+\`\`\`
+
+### 📦 [Download Plugin Artifact](${artifactUrl})
+
+### Source Code
+
+Browse the plugin source code: [${branchName}](${branchUrl}/plugins/issue-${issueNumber}/${pluginName})
+
+### Feedback Requested
+
+Please test the plugin and report back:
+- [ ] Plugin installs correctly
+- [ ] Device discovery works
+- [ ] Basic controls function
+- [ ] State updates properly
+
+If you encounter issues, please describe them in detail.
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+    );
+
+    await updateLabels(issueNumber, ["ready-for-testing"], ["in-progress"]);
+    console.log("✅ Plugin published successfully!");
+  } catch (error) {
+    console.error("Error publishing plugin:", error);
+    process.exit(1);
+  }
+}
+
 // Run if called directly
 if (require.main === module) {
-  const issueNumber = process.argv[2];
+  const args = process.argv.slice(2);
+  const publishOnlyFlag = args.includes("--publish-only");
+  const issueNumber = args.find((a) => !a.startsWith("--"));
 
-  if (issueNumber) {
-    // Process specific issue
+  if (publishOnlyFlag && issueNumber) {
+    // Publish existing plugin only
+    publishOnly(parseInt(issueNumber));
+  } else if (issueNumber) {
+    // Process specific issue (full generation)
     octokit.issues
       .get({
         owner: REPO_OWNER,
