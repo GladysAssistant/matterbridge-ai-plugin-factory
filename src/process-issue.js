@@ -95,6 +95,70 @@ async function postComment(issueNumber, body) {
 }
 
 /**
+ * Get comments from an issue
+ */
+async function getIssueComments(issueNumber) {
+  const { data: comments } = await octokit.issues.listComments({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    issue_number: issueNumber,
+  });
+  return comments;
+}
+
+/**
+ * Get the latest bug report/feedback from comments
+ */
+function extractLatestFeedback(comments) {
+  // Filter out bot comments and find the latest user feedback
+  const userComments = comments.filter(
+    (c) =>
+      !c.body.includes(
+        "*This is an automated response from the Matterbridge AI Plugin Factory*",
+      ),
+  );
+
+  if (userComments.length === 0) return null;
+
+  // Get the most recent user comment
+  const latestComment = userComments[userComments.length - 1];
+  return {
+    author: latestComment.user.login,
+    body: latestComment.body,
+    createdAt: latestComment.created_at,
+  };
+}
+
+/**
+ * Create a feedback/fix prompt for Claude
+ */
+function createFeedbackPrompt(issueNumber, parsedData, feedback, pluginName) {
+  return `
+# Bug Fix Request for Plugin #${issueNumber}
+
+## Original Plugin
+- **Name:** ${pluginName}
+- **Device:** ${parsedData.deviceName}
+
+## Bug Report from User
+**Reported by:** ${feedback.author}
+**Date:** ${feedback.createdAt}
+
+${feedback.body}
+
+## Instructions
+
+1. Read the existing plugin code in the current directory
+2. Analyze the bug report and error messages
+3. Fix the issue in the plugin code
+4. Make sure the fix follows Matterbridge best practices
+5. Test that the TypeScript compiles without errors
+
+The plugin source is in the current working directory. Fix the bug and update the necessary files.
+`;
+}
+
+/**
  * Update issue labels
  */
 async function updateLabels(issueNumber, labelsToAdd, labelsToRemove = []) {
@@ -759,15 +823,153 @@ If you encounter issues, please describe them in detail.
   }
 }
 
+/**
+ * Process feedback/bug report and fix the plugin
+ */
+async function processFeedback(issueNumber) {
+  console.log(`🔧 Processing feedback for issue #${issueNumber}...`);
+
+  try {
+    // Get issue data
+    const { data: issue } = await octokit.issues.get({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      issue_number: issueNumber,
+    });
+
+    const parsedData = parseIssueBody(issue.body || "");
+    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginDir = path.join(
+      PLUGINS_DIR,
+      `issue-${issueNumber}`,
+      pluginName,
+    );
+
+    // Check if plugin exists
+    try {
+      await fs.access(pluginDir);
+    } catch {
+      console.error(`❌ Plugin directory not found: ${pluginDir}`);
+      console.log("Run without --fix to generate the plugin first.");
+      process.exit(1);
+    }
+
+    // Get comments and extract feedback
+    const comments = await getIssueComments(issueNumber);
+    const feedback = extractLatestFeedback(comments);
+
+    if (!feedback) {
+      console.error("❌ No user feedback found in comments");
+      process.exit(1);
+    }
+
+    console.log(`📝 Found feedback from ${feedback.author}`);
+    console.log(`   "${feedback.body.substring(0, 100)}..."`);
+
+    // Post acknowledgment
+    await postComment(
+      issueNumber,
+      `## 🔧 Processing Bug Report
+
+I'm analyzing the feedback and working on a fix.
+
+**Feedback from:** @${feedback.author}
+
+I'll post an updated plugin when ready.
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+    );
+
+    await updateLabels(issueNumber, ["in-progress"], ["ready-for-testing"]);
+
+    // Create fix prompt
+    const prompt = createFeedbackPrompt(
+      issueNumber,
+      parsedData,
+      feedback,
+      pluginName,
+    );
+
+    // Run Claude to fix the plugin
+    await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+
+    // Rebuild the plugin
+    console.log("📦 Rebuilding plugin...");
+    const artifactPath = await buildPlugin(issueNumber, pluginName);
+    console.log(`✅ Plugin rebuilt: ${artifactPath}`);
+
+    // Publish updated version
+    console.log("📤 Publishing updated plugin...");
+    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
+
+    // Post success comment
+    await postComment(
+      issueNumber,
+      `## ✅ Plugin Updated
+
+I've applied a fix based on your feedback.
+
+### Plugin Details
+- **Name:** \`${pluginName}\`
+- **Branch:** [\`${branchName}\`](${branchUrl})
+
+### Installation
+
+\`\`\`bash
+curl -L -o ${pluginName}-1.0.0.tgz "${artifactUrl}"
+npm install ./${pluginName}-1.0.0.tgz
+\`\`\`
+
+### 📦 [Download Updated Plugin](${artifactUrl})
+
+Please test again and let me know if the issue is resolved.
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+    );
+
+    await updateLabels(issueNumber, ["ready-for-testing"], ["in-progress"]);
+    console.log("✅ Plugin fix published successfully!");
+  } catch (error) {
+    console.error("Error processing feedback:", error);
+
+    await postComment(
+      issueNumber,
+      `## ❌ Error Processing Feedback
+
+An error occurred while trying to fix the plugin:
+
+\`\`\`
+${error.message}
+\`\`\`
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+    );
+
+    await updateLabels(issueNumber, ["error"], ["in-progress"]);
+    process.exit(1);
+  }
+}
+
 // Run if called directly
 if (require.main === module) {
   const args = process.argv.slice(2);
   const publishOnlyFlag = args.includes("--publish-only");
+  const fixFlag = args.includes("--fix");
   const issueNumber = args.find((a) => !a.startsWith("--"));
 
   if (publishOnlyFlag && issueNumber) {
     // Publish existing plugin only
     publishOnly(parseInt(issueNumber));
+  } else if (fixFlag && issueNumber) {
+    // Process feedback and fix the plugin
+    processFeedback(parseInt(issueNumber));
   } else if (issueNumber) {
     // Process specific issue (full generation)
     octokit.issues
@@ -787,6 +989,7 @@ if (require.main === module) {
 module.exports = {
   processNewIssues,
   processIssue,
+  processFeedback,
   parseIssueBody,
   validateRequest,
 };
