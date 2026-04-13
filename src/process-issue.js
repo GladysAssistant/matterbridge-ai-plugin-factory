@@ -366,15 +366,18 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     const absArtifactPath = path.resolve(artifactPath);
     const artifactName = path.basename(artifactPath);
 
-    // Copy to temp location before switching branches
-    const tempDir = path.join(repoRoot, ".tmp-publish");
+    // Copy to temp location OUTSIDE repo before switching branches
+    const tempDir = path.join(
+      "/tmp",
+      `matterbridge-publish-${issueNumber}-${Date.now()}`,
+    );
     const tempPluginDir = path.join(tempDir, pluginName);
     const tempArtifactPath = path.join(tempDir, artifactName);
 
     await fs.mkdir(tempDir, { recursive: true });
     execSync(`cp -r "${absPluginDir}" "${tempDir}/"`, { stdio: "inherit" });
     execSync(`cp "${absArtifactPath}" "${tempDir}/"`, { stdio: "inherit" });
-    console.log("   Copied files to temp location");
+    console.log(`   Copied files to temp location: ${tempDir}`);
 
     // Make sure we're on main first
     execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
