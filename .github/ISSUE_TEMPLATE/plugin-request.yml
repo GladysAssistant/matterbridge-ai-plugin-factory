@@ -9,9 +9,9 @@ body:
     attributes:
       value: |
         ## 🏭 Matterbridge AI Plugin Factory
-        
+
         Thank you for requesting a new plugin! Our AI agent will analyze your request and attempt to create a Matterbridge plugin.
-        
+
         **Important:** This factory works by adapting existing integrations from other projects. You MUST provide links to existing implementations.
 
   - type: input
@@ -20,25 +20,6 @@ body:
       label: "Device/Service Name"
       description: "What device or service should this plugin support?"
       placeholder: "e.g., Philips Hue, Tuya, Shelly, etc."
-    validations:
-      required: true
-
-  - type: dropdown
-    id: device_category
-    attributes:
-      label: "Device Category"
-      description: "What type of device is this?"
-      options:
-        - Light (on/off, dimming, color)
-        - Switch/Outlet
-        - Thermostat/Climate
-        - Sensor (temperature, humidity, motion, etc.)
-        - Lock
-        - Cover (blinds, shades, garage door)
-        - Fan
-        - Media Player
-        - Camera
-        - Other
     validations:
       required: true
 
@@ -79,40 +60,6 @@ body:
         - Color temperature
         - RGB color
         - etc.
-    validations:
-      required: true
-
-  - type: dropdown
-    id: authentication_type
-    attributes:
-      label: "Authentication Type"
-      description: "How does the device/service authenticate?"
-      options:
-        - No authentication (local only)
-        - API Key
-        - OAuth 2.0
-        - Username/Password
-        - Token-based
-        - Cloud account
-        - Other
-    validations:
-      required: true
-
-  - type: dropdown
-    id: connection_type
-    attributes:
-      label: "Connection Type"
-      description: "How does the device communicate?"
-      options:
-        - Local HTTP/REST API
-        - Local WebSocket
-        - Cloud API
-        - MQTT
-        - CoAP
-        - Bluetooth
-        - Zigbee (via gateway)
-        - Z-Wave (via gateway)
-        - Other
     validations:
       required: true
 
