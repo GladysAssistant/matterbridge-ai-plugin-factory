@@ -24,28 +24,18 @@ body:
       required: true
 
   - type: textarea
-    id: api_documentation
-    attributes:
-      label: "API Documentation"
-      description: "Provide links to the official API documentation"
-      placeholder: |
-        - Official API docs: https://...
-        - Developer portal: https://...
-    validations:
-      required: true
-
-  - type: textarea
     id: existing_integrations
     attributes:
-      label: "Existing Integrations (REQUIRED)"
+      label: "Existing Integrations & Documentation"
       description: |
-        Provide links to existing integrations in other projects. This is MANDATORY.
-        The AI factory works by adapting existing implementations, not creating from scratch.
+        Provide links to existing integrations or any documentation you can find.
+        The AI works best when it can learn from existing implementations.
       placeholder: |
+        Examples of useful links:
         - Home Assistant integration: https://github.com/home-assistant/core/tree/dev/homeassistant/components/...
-        - Node-RED node: https://flows.nodered.org/node/...
-        - OpenHAB binding: https://github.com/openhab/openhab-addons/tree/main/bundles/...
-        - Other npm package: https://www.npmjs.com/package/...
+        - npm package: https://www.npmjs.com/package/...
+        - Official documentation or API docs: https://...
+        - Any GitHub project that controls this device: https://...
     validations:
       required: true
 
