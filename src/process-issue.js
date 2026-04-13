@@ -211,6 +211,10 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           "AGENT_SYSTEM_PROMPT.md",
         );
 
+        console.log("🤖 Starting Claude Code CLI...");
+        console.log(`   Working directory: ${workDir}`);
+        console.log(`   System prompt: ${systemPromptPath}`);
+
         // Run Claude Code CLI
         const claude = spawn(
           "claude",
@@ -230,17 +234,21 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           },
         );
 
+        console.log(`🤖 Claude process started (PID: ${claude.pid})`);
+
         let output = "";
         let errorOutput = "";
 
         claude.stdout.on("data", (data) => {
-          output += data.toString();
-          console.log(data.toString());
+          const text = data.toString();
+          output += text;
+          process.stdout.write(text); // Use write for immediate output
         });
 
         claude.stderr.on("data", (data) => {
-          errorOutput += data.toString();
-          console.error(data.toString());
+          const text = data.toString();
+          errorOutput += text;
+          process.stderr.write(text); // Use write for immediate output
         });
 
         claude.on("close", (code) => {
