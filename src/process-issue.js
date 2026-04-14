@@ -251,20 +251,22 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         console.log(`   Working directory: ${workDir}`);
         console.log(`   System prompt: ${systemPromptPath}`);
 
-        // Run Claude Code CLI in print mode (non-interactive)
+        // Run Claude Code CLI in print mode (non-interactive) with streaming JSON
         const claude = spawn(
           "claude",
           [
             "-p", // Print mode (non-interactive)
             "--verbose", // Show detailed progress
             "--dangerously-skip-permissions", // Allow file operations
+            "--output-format",
+            "stream-json", // Stream output for real-time logs
             "--system-prompt-file",
             systemPromptPath,
             prompt,
           ],
           {
             cwd: workDir,
-            stdio: "inherit", // Inherit stdio for real-time output
+            stdio: ["ignore", "pipe", "pipe"],
             env: {
               ...process.env,
             },
@@ -272,6 +274,36 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         );
 
         console.log(`🤖 Claude process started (PID: ${claude.pid})`);
+
+        claude.stdout.on("data", (data) => {
+          const lines = data.toString().split("\n").filter(Boolean);
+          for (const line of lines) {
+            try {
+              const event = JSON.parse(line);
+              // Log different event types
+              if (event.type === "assistant" && event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === "text") {
+                    console.log(`💬 ${block.text.substring(0, 200)}...`);
+                  } else if (block.type === "tool_use") {
+                    console.log(`🔧 Tool: ${block.name}`);
+                  }
+                }
+              } else if (event.type === "result") {
+                console.log(
+                  `✅ Result: ${event.result?.substring(0, 100) || "done"}`,
+                );
+              }
+            } catch {
+              // Not JSON, print raw
+              console.log(data.toString());
+            }
+          }
+        });
+
+        claude.stderr.on("data", (data) => {
+          console.error(data.toString());
+        });
 
         claude.on("close", (code) => {
           if (code === 0) {
