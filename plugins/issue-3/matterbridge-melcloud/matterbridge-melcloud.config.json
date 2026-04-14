@@ -1,0 +1,9 @@
+{
+  "name": "matterbridge-melcloud",
+  "type": "DynamicPlatform",
+  "email": "",
+  "password": "",
+  "pollingInterval": 60000,
+  "unregisterOnShutdown": false,
+  "debug": false
+}

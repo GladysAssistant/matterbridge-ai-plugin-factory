@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MatterbridgeMelCloud",
+  "description": "Matterbridge MELCloud plugin configuration",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Plugin name" },
+    "type": { "type": "string", "description": "Platform type" },
+    "email": {
+      "type": "string",
+      "description": "MELCloud account email",
+      "ui:widget": "email"
+    },
+    "password": {
+      "type": "string",
+      "description": "MELCloud account password",
+      "ui:widget": "password"
+    },
+    "pollingInterval": {
+      "type": "number",
+      "description": "Device state polling interval in milliseconds",
+      "default": 60000
+    },
+    "unregisterOnShutdown": {
+      "type": "boolean",
+      "description": "Unregister devices on shutdown",
+      "default": false
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Enable debug logging",
+      "default": false
+    }
+  },
+  "required": ["email", "password"]
+}
