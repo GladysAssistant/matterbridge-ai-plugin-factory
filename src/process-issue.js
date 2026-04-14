@@ -923,6 +923,94 @@ If you encounter issues, please describe them in detail.
 }
 
 /**
+ * Resume interrupted work on a plugin
+ */
+async function resumeWork(issueNumber) {
+  console.log(`🔄 Resuming work on issue #${issueNumber}...`);
+
+  try {
+    // Get issue data
+    const { data: issue } = await octokit.issues.get({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      issue_number: issueNumber,
+    });
+
+    const parsedData = parseIssueBody(issue.body || "");
+    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginDir = path.join(
+      PLUGINS_DIR,
+      `issue-${issueNumber}`,
+      pluginName,
+    );
+
+    // Create resume prompt
+    const prompt = `Resume work on ${pluginName}. Be concise, write code not explanations.
+
+The previous session was interrupted. Continue where you left off:
+1. Check what files exist and what's missing
+2. Complete any unfinished code
+3. Build and test the plugin
+4. Make sure everything compiles and works
+
+The plugin directory is: ${pluginDir}
+If the directory doesn't exist, start fresh by cloning the template.`;
+
+    // Ensure plugin directory exists (create if needed)
+    await fs.mkdir(path.dirname(pluginDir), { recursive: true });
+
+    // Run Claude to resume work
+    await runClaudeCodeCLI(issueNumber, prompt, path.dirname(pluginDir));
+
+    // Build the plugin
+    console.log("📦 Building plugin...");
+    const artifactPath = await buildPlugin(issueNumber, pluginName);
+    console.log(`✅ Plugin built: ${artifactPath}`);
+
+    // Publish to branch
+    console.log("📤 Publishing plugin to branch...");
+    const { artifactUrl, branchUrl, branchName } = await publishPluginToBranch(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
+
+    // Post success comment
+    await postComment(
+      issueNumber,
+      `## ✅ Plugin Ready for Testing
+
+Your Matterbridge plugin has been created!
+
+### Plugin Details
+- **Name:** \`${pluginName}\`
+- **Branch:** [\`${branchName}\`](${branchUrl})
+
+### Installation
+
+\`\`\`bash
+curl -L -o ${pluginName}.tgz "${artifactUrl}"
+\`\`\`
+
+Then upload the .tgz file to Matterbridge UI or install via npm.
+
+### 📦 [Download Plugin](${artifactUrl})
+
+Please test and report any issues.
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+    );
+
+    await updateLabels(issueNumber, ["ready-for-testing"], ["in-progress"]);
+    console.log("✅ Resume completed successfully!");
+  } catch (error) {
+    console.error("Error resuming work:", error);
+    process.exit(1);
+  }
+}
+
+/**
  * Process feedback/bug report and fix the plugin
  */
 async function processFeedback(issueNumber) {
@@ -1061,6 +1149,7 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   const publishOnlyFlag = args.includes("--publish-only");
   const fixFlag = args.includes("--fix");
+  const resumeFlag = args.includes("--resume");
   const issueNumber = args.find((a) => !a.startsWith("--"));
 
   if (publishOnlyFlag && issueNumber) {
@@ -1069,6 +1158,9 @@ if (require.main === module) {
   } else if (fixFlag && issueNumber) {
     // Process feedback and fix the plugin
     processFeedback(parseInt(issueNumber));
+  } else if (resumeFlag && issueNumber) {
+    // Resume interrupted work
+    resumeWork(parseInt(issueNumber));
   } else if (issueNumber) {
     // Process specific issue (full generation)
     octokit.issues
@@ -1089,6 +1181,7 @@ module.exports = {
   processNewIssues,
   processIssue,
   processFeedback,
+  resumeWork,
   parseIssueBody,
   validateRequest,
 };
