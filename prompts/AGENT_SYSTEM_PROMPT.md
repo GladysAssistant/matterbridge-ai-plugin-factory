@@ -14,12 +14,12 @@ You are an automated plugin factory. Steps:
 Clone template first, then modify:
 
 ```bash
-git clone https://github.com/Luligu/matterbridge-plugin-template.git matterbridge-{name}
-cd matterbridge-{name} && rm -rf .git
+git clone https://github.com/Luligu/matterbridge-plugin-template.git matterbridge-ai-factory-{name}
+cd matterbridge-ai-factory-{name} && rm -rf .git
 npm install
 ```
 
-Update package.json: name (keep matterbridge- prefix), version, description, author.
+Update package.json: name must be `matterbridge-ai-factory-{name}` (this prefix is required to avoid npm conflicts), version, description, author.
 
 ## CRITICAL: Import Rules
 

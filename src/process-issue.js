@@ -213,7 +213,7 @@ function generatePluginName(deviceName) {
  * Create the AI prompt for Claude Code CLI
  */
 function createAIPrompt(issueNumber, parsedData) {
-  const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+  const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
   const integrations = [
     ...parsedData.existingIntegrations,
     ...parsedData.apiDocumentation,
@@ -690,7 +690,7 @@ I'll begin development shortly.
     await updateLabels(issueNumber, ["in-progress"], ["pending-review"]);
 
     // Create working directory
-    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
     const workDir = path.join(PLUGINS_DIR, `issue-${issueNumber}`);
     await fs.mkdir(workDir, { recursive: true });
 
@@ -842,7 +842,7 @@ async function publishOnly(issueNumber) {
     });
 
     const parsedData = parseIssueBody(issue.body || "");
-    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
     const pluginDir = path.join(
       PLUGINS_DIR,
       `issue-${issueNumber}`,
@@ -968,7 +968,7 @@ async function resumeWork(issueNumber) {
     });
 
     const parsedData = parseIssueBody(issue.body || "");
-    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
     const pluginDir = path.join(
       PLUGINS_DIR,
       `issue-${issueNumber}`,
@@ -1056,7 +1056,7 @@ async function processFeedback(issueNumber) {
     });
 
     const parsedData = parseIssueBody(issue.body || "");
-    const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+    const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
     const pluginDir = path.join(
       PLUGINS_DIR,
       `issue-${issueNumber}`,
