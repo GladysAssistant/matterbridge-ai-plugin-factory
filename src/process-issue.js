@@ -572,45 +572,60 @@ async function buildPlugin(issueNumber, pluginName) {
         return;
       }
 
-      console.log("   Running npm run build...");
-      const build = spawn("npm", ["run", "build"], spawnOptions);
+      console.log("   Running npm link matterbridge...");
+      const link = spawn("npm", ["link", "matterbridge"], spawnOptions);
 
-      build.on("error", (err) =>
-        reject(new Error(`npm build error: ${err.message}`)),
+      link.on("error", (err) =>
+        reject(new Error(`npm link matterbridge error: ${err.message}`)),
       );
-      build.on("close", (buildCode) => {
-        if (buildCode !== 0) {
-          reject(new Error(`npm build failed with code ${buildCode}`));
+      link.on("close", (linkCode) => {
+        if (linkCode !== 0) {
+          reject(
+            new Error(`npm link matterbridge failed with code ${linkCode}`),
+          );
           return;
         }
 
-        console.log("   Running npm pack...");
-        const pack = spawn("npm", ["pack"], { cwd: pluginDir, shell: true });
+        console.log("   Running npm run build...");
+        const build = spawn("npm", ["run", "build"], spawnOptions);
 
-        let packOutput = "";
-        pack.stdout?.on("data", (data) => {
-          packOutput += data.toString();
-        });
-
-        pack.on("error", (err) =>
-          reject(new Error(`npm pack error: ${err.message}`)),
+        build.on("error", (err) =>
+          reject(new Error(`npm build error: ${err.message}`)),
         );
-        pack.on("close", (packCode) => {
-          if (packCode !== 0) {
-            reject(new Error(`npm pack failed with code ${packCode}`));
+        build.on("close", (buildCode) => {
+          if (buildCode !== 0) {
+            reject(new Error(`npm build failed with code ${buildCode}`));
             return;
           }
 
-          // Get tarball name from npm pack output or use default
-          const tarball = packOutput.trim() || `${pluginName}-1.0.0.tgz`;
-          console.log(`   Created tarball: ${tarball}`);
+          console.log("   Running npm pack...");
+          const pack = spawn("npm", ["pack"], { cwd: pluginDir, shell: true });
 
-          fs.rename(
-            path.join(pluginDir, tarball),
-            path.join(artifactDir, tarball),
-          )
-            .then(() => resolve(path.join(artifactDir, tarball)))
-            .catch(reject);
+          let packOutput = "";
+          pack.stdout?.on("data", (data) => {
+            packOutput += data.toString();
+          });
+
+          pack.on("error", (err) =>
+            reject(new Error(`npm pack error: ${err.message}`)),
+          );
+          pack.on("close", (packCode) => {
+            if (packCode !== 0) {
+              reject(new Error(`npm pack failed with code ${packCode}`));
+              return;
+            }
+
+            // Get tarball name from npm pack output or use default
+            const tarball = packOutput.trim() || `${pluginName}-1.0.0.tgz`;
+            console.log(`   Created tarball: ${tarball}`);
+
+            fs.rename(
+              path.join(pluginDir, tarball),
+              path.join(artifactDir, tarball),
+            )
+              .then(() => resolve(path.join(artifactDir, tarball)))
+              .catch(reject);
+          });
         });
       });
     });
