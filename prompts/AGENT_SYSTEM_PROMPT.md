@@ -55,12 +55,18 @@ await this.registerDevice(device);
 ## MANDATORY: Test Before Done
 
 ```bash
-npm run build
+npm install
 npm link matterbridge
+npm run build
 matterbridge -add .
 matterbridge -bridge &
 sleep 60
 pkill -f "matterbridge -bridge"
 ```
 
-Start matterbridge in background, wait 60 seconds for it to initialize and load the plugin, then kill it. Check the output for errors. If errors, fix and retest. Not done until matterbridge starts without plugin errors.
+**IMPORTANT:** `npm link matterbridge` MUST run before `npm run build` so TypeScript can find matterbridge types.
+
+If `npm run build` shows ANY errors, fix them and rebuild. Not done until:
+
+1. `npm run build` completes with zero errors
+2. `matterbridge -bridge` starts without plugin errors
