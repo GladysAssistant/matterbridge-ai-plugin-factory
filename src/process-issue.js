@@ -251,19 +251,20 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         console.log(`   Working directory: ${workDir}`);
         console.log(`   System prompt: ${systemPromptPath}`);
 
-        // Run Claude Code CLI
+        // Run Claude Code CLI in print mode (non-interactive)
         const claude = spawn(
           "claude",
           [
-            "--print", // Print output
+            "-p", // Print mode (non-interactive)
+            "--verbose", // Show detailed progress
             "--dangerously-skip-permissions", // Allow file operations
-            "--system-prompt",
+            "--system-prompt-file",
             systemPromptPath,
             prompt,
           ],
           {
             cwd: workDir,
-            stdio: ["ignore", "pipe", "pipe"], // ignore stdin, pipe stdout/stderr
+            stdio: "inherit", // Inherit stdio for real-time output
             env: {
               ...process.env,
             },
@@ -272,28 +273,11 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
 
         console.log(`🤖 Claude process started (PID: ${claude.pid})`);
 
-        let output = "";
-        let errorOutput = "";
-
-        claude.stdout.on("data", (data) => {
-          const text = data.toString();
-          output += text;
-          process.stdout.write(text); // Use write for immediate output
-        });
-
-        claude.stderr.on("data", (data) => {
-          const text = data.toString();
-          errorOutput += text;
-          process.stderr.write(text); // Use write for immediate output
-        });
-
         claude.on("close", (code) => {
           if (code === 0) {
-            resolve({ success: true, output });
+            resolve({ success: true });
           } else {
-            reject(
-              new Error(`Claude CLI exited with code ${code}: ${errorOutput}`),
-            );
+            reject(new Error(`Claude CLI exited with code ${code}`));
           }
         });
 
