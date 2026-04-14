@@ -572,8 +572,8 @@ async function buildPlugin(issueNumber, pluginName) {
         return;
       }
 
-      console.log("   Running npm link matterbridge...");
-      const link = spawn("npm", ["link", "matterbridge"], spawnOptions);
+      console.log("   Running sudo npm link matterbridge...");
+      const link = spawn("sudo", ["npm", "link", "matterbridge"], spawnOptions);
 
       link.on("error", (err) =>
         reject(new Error(`npm link matterbridge error: ${err.message}`)),
