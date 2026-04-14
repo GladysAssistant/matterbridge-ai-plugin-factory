@@ -58,7 +58,9 @@ await this.registerDevice(device);
 npm run build
 npm link matterbridge
 matterbridge -add .
-matterbridge -bridge
+matterbridge -bridge &
+sleep 60
+pkill -f "matterbridge -bridge"
 ```
 
-Check output for errors. If errors, fix and retest. Not done until matterbridge starts without plugin errors.
+Start matterbridge in background, wait 60 seconds for it to initialize and load the plugin, then kill it. Check the output for errors. If errors, fix and retest. Not done until matterbridge starts without plugin errors.
