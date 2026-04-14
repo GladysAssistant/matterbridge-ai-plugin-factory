@@ -133,29 +133,17 @@ function extractLatestFeedback(comments) {
  * Create a feedback/fix prompt for Claude
  */
 function createFeedbackPrompt(issueNumber, parsedData, feedback, pluginName) {
-  return `
-# Bug Fix Request for Plugin #${issueNumber}
+  return `Fix bug in ${pluginName}. Be concise, write code not explanations.
 
-## Original Plugin
-- **Name:** ${pluginName}
-- **Device:** ${parsedData.deviceName}
-
-## Bug Report from User
-**Reported by:** ${feedback.author}
-**Date:** ${feedback.createdAt}
-
+Bug report:
 ${feedback.body}
 
-## Instructions
+Fix the code, then test:
+\`\`\`bash
+npm run build && npm install -g . && timeout 30 matterbridge -add ${pluginName} 2>&1 || true && timeout 30 matterbridge -bridge 2>&1 || true
+\`\`\`
 
-1. Read the existing plugin code in the current directory
-2. Analyze the bug report and error messages
-3. Fix the issue in the plugin code
-4. Make sure the fix follows Matterbridge best practices
-5. Test that the TypeScript compiles without errors
-
-The plugin source is in the current working directory. Fix the bug and update the necessary files.
-`;
+Not done until matterbridge starts without errors.`;
 }
 
 /**
@@ -225,37 +213,21 @@ function generatePluginName(deviceName) {
  * Create the AI prompt for Claude Code CLI
  */
 function createAIPrompt(issueNumber, parsedData) {
-  return `
-# Plugin Request #${issueNumber}
+  const pluginName = `matterbridge-${generatePluginName(parsedData.deviceName)}`;
+  const integrations = [
+    ...parsedData.existingIntegrations,
+    ...parsedData.apiDocumentation,
+  ].filter(Boolean);
 
-## Device Information
-- **Name:** ${parsedData.deviceName}
-- **Category:** ${parsedData.deviceCategory}
-- **Authentication:** ${parsedData.authenticationType}
-- **Connection:** ${parsedData.connectionType}
+  return `Create ${pluginName} for ${parsedData.deviceName}. Be concise, write code not explanations.
 
-## API Documentation
-${parsedData.apiDocumentation.map((url) => `- ${url}`).join("\n")}
+Study these integrations:
+${integrations.map((url) => url).join("\n")}
 
-## Existing Integrations to Study
-${parsedData.existingIntegrations.map((url) => `- ${url}`).join("\n")}
+Capabilities needed: ${parsedData.deviceCapabilities.join(", ")}
+${parsedData.additionalContext ? `Context: ${parsedData.additionalContext}` : ""}
 
-## Required Capabilities
-${parsedData.deviceCapabilities.map((cap) => `- ${cap}`).join("\n")}
-
-## Additional Context
-${parsedData.additionalContext || "None provided"}
-
-## Instructions
-
-1. Study the existing integrations listed above
-2. Create a complete Matterbridge plugin following the patterns in AGENT_SYSTEM_PROMPT.md
-3. The plugin should be named: matterbridge-${generatePluginName(parsedData.deviceName)}
-4. Output all files to: ${PLUGINS_DIR}/issue-${issueNumber}/
-5. Create a build artifact in: ${ARTIFACTS_DIR}/issue-${issueNumber}/
-
-Focus on adapting the existing integration code patterns to the Matterbridge plugin architecture.
-`;
+Output to: ${PLUGINS_DIR}/issue-${issueNumber}/${pluginName}`;
 }
 
 /**
