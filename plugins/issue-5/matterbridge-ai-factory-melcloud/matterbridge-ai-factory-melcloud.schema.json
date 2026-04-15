@@ -1,0 +1,62 @@
+{
+  "title": "Matterbridge MELCloud Plugin",
+  "description": "Control Mitsubishi Air Conditioning via MELCloud",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "email": {
+      "title": "MELCloud Email",
+      "description": "Your MELCloud account email address",
+      "type": "string"
+    },
+    "password": {
+      "title": "MELCloud Password",
+      "description": "Your MELCloud account password",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to poll MELCloud for device state updates",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only expose devices in this list (empty = all)",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "Exclude devices in this list",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "matterbridge-ai-factory-melcloud",
+  "version": "1.0.0",
+  "description": "Matterbridge plugin for Mitsubishi MELCloud Air Conditioning",
+  "author": "Matterbridge AI Factory",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/module.js",
+  "types": "dist/module.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js",
+      "types": "./dist/module.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.19.0 <21.0.0 || >=22.13.0 <23.0.0 || >=24.0.0 <25.0.0"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "*.config.json",
+    "*.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "clean": "npx shx rm -rf *.tsbuildinfo dist",
+    "cleanBuild": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "node-ansi-logger": "3.2.1",
+    "node-persist-manager": "2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "shx": "0.4.0",
+    "typescript": "5.8.3"
+  }
+}

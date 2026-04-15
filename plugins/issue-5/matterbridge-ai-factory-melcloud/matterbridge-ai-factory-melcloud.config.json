@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-melcloud",
+  "type": "DynamicPlatform",
+  "email": "",
+  "password": "",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
