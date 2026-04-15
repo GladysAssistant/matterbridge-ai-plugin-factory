@@ -491,16 +491,13 @@ async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
-    // Copy updated artifact
+    // Ensure artifact directory exists (artifact is already in place from buildPlugin)
     const repoArtifactDir = path.join(
       repoRoot,
       "artifacts",
       `issue-${issueNumber}`,
     );
     await fs.mkdir(repoArtifactDir, { recursive: true });
-    execSync(`cp "${path.resolve(artifactPath)}" "${repoArtifactDir}/"`, {
-      stdio: "inherit",
-    });
 
     // Remove node_modules before committing
     const pluginNodeModules = path.join(
