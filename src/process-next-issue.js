@@ -39,25 +39,44 @@ const octokit = new Octokit({
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
 const REPO_NAME = process.env.GITHUB_REPO_NAME;
 
+// Labels that mean the factory has already started (or finished) working on it
+const PROCESSED_LABELS = new Set([
+  "in-progress",
+  "ready-for-testing",
+  "completed",
+  "error",
+  "needs-info",
+]);
+
 async function processNextIssue() {
   console.log("🔍 Looking for the oldest never-generated plugin request...");
 
-  const { data: issues } = await octokit.issues.listForRepo({
+  // Fetch all open issues (paginated) and filter client-side so that issues
+  // without any labels are still considered.
+  const issues = await octokit.paginate(octokit.issues.listForRepo, {
     owner: REPO_OWNER,
     repo: REPO_NAME,
-    labels: "plugin-request,pending-review",
     state: "open",
     sort: "created",
     direction: "asc",
-    per_page: 1,
+    per_page: 100,
   });
 
-  if (issues.length === 0) {
-    console.log("✅ No pending plugin requests. Nothing to do.");
+  // Exclude pull requests and already-processed issues
+  const candidates = issues.filter((issue) => {
+    if (issue.pull_request) return false;
+    const labels = (issue.labels || []).map((l) =>
+      typeof l === "string" ? l : l.name,
+    );
+    return !labels.some((l) => PROCESSED_LABELS.has(l));
+  });
+
+  if (candidates.length === 0) {
+    console.log("✅ No never-generated issues found. Nothing to do.");
     return;
   }
 
-  const issue = issues[0];
+  const issue = candidates[0];
   console.log(
     `➡️  Processing issue #${issue.number}: ${issue.title} (created ${issue.created_at})`,
   );
