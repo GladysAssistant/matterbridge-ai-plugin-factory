@@ -20,6 +20,9 @@ const REPO_NAME = process.env.GITHUB_REPO_NAME;
 const PLUGINS_DIR = process.env.PLUGINS_OUTPUT_DIR || "./plugins";
 const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || "./artifacts";
 
+// Claude model can be overridden via --model CLI flag or CLAUDE_MODEL env var
+let CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
+
 /**
  * Parse issue body to extract structured data
  */
@@ -250,28 +253,32 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         console.log("🤖 Starting Claude Code CLI...");
         console.log(`   Working directory: ${workDir}`);
         console.log(`   System prompt: ${systemPromptPath}`);
+        if (CLAUDE_MODEL) {
+          console.log(`   Model: ${CLAUDE_MODEL}`);
+        }
 
         // Run Claude Code CLI in print mode (non-interactive) with streaming JSON
-        const claude = spawn(
-          "claude",
-          [
-            "-p", // Print mode (non-interactive)
-            "--verbose", // Show detailed progress
-            "--dangerously-skip-permissions", // Allow file operations
-            "--output-format",
-            "stream-json", // Stream output for real-time logs
-            "--system-prompt-file",
-            systemPromptPath,
-            prompt,
-          ],
-          {
-            cwd: workDir,
-            stdio: ["ignore", "pipe", "pipe"],
-            env: {
-              ...process.env,
-            },
+        const claudeArgs = [
+          "-p", // Print mode (non-interactive)
+          "--verbose", // Show detailed progress
+          "--dangerously-skip-permissions", // Allow file operations
+          "--output-format",
+          "stream-json", // Stream output for real-time logs
+          "--system-prompt-file",
+          systemPromptPath,
+        ];
+        if (CLAUDE_MODEL) {
+          claudeArgs.push("--model", CLAUDE_MODEL);
+        }
+        claudeArgs.push(prompt);
+
+        const claude = spawn("claude", claudeArgs, {
+          cwd: workDir,
+          stdio: ["ignore", "pipe", "pipe"],
+          env: {
+            ...process.env,
           },
-        );
+        });
 
         console.log(`🤖 Claude process started (PID: ${claude.pid})`);
 
@@ -1239,7 +1246,23 @@ if (require.main === module) {
   const publishOnlyFlag = args.includes("--publish-only");
   const fixFlag = args.includes("--fix");
   const resumeFlag = args.includes("--resume");
-  const issueNumber = args.find((a) => !a.startsWith("--"));
+
+  // Parse --model flag (supports both "--model value" and "--model=value")
+  const modelIdx = args.findIndex((a) => a === "--model");
+  if (modelIdx !== -1 && args[modelIdx + 1]) {
+    CLAUDE_MODEL = args[modelIdx + 1];
+  } else {
+    const modelEq = args.find((a) => a.startsWith("--model="));
+    if (modelEq) CLAUDE_MODEL = modelEq.split("=")[1];
+  }
+
+  // Issue number is the first non-flag argument (and not a flag value)
+  const issueNumber = args.find((a, i) => {
+    if (a.startsWith("--")) return false;
+    // Skip value of --model
+    if (i > 0 && args[i - 1] === "--model") return false;
+    return true;
+  });
 
   if (publishOnlyFlag && issueNumber) {
     // Publish existing plugin only

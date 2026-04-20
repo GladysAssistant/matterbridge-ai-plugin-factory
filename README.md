@@ -115,15 +115,16 @@ matterbridge-ai-plugin-factory/
 
 ### Environment Variables
 
-| Variable             | Description                     | Required         |
-| -------------------- | ------------------------------- | ---------------- |
-| `GITHUB_TOKEN`       | GitHub PAT with repo access     | Yes              |
-| `GITHUB_REPO_OWNER`  | Repository owner                | Yes              |
-| `GITHUB_REPO_NAME`   | Repository name                 | Yes              |
-| `PLUGINS_OUTPUT_DIR` | Directory for generated plugins | No               |
-| `ARTIFACTS_DIR`      | Directory for build artifacts   | No               |
-| `WEBHOOK_SECRET`     | GitHub webhook secret           | For webhook mode |
-| `WEBHOOK_PORT`       | Webhook server port             | For webhook mode |
+| Variable             | Description                                  | Required         |
+| -------------------- | -------------------------------------------- | ---------------- |
+| `GITHUB_TOKEN`       | GitHub PAT with repo access                  | Yes              |
+| `GITHUB_REPO_OWNER`  | Repository owner                             | Yes              |
+| `GITHUB_REPO_NAME`   | Repository name                              | Yes              |
+| `PLUGINS_OUTPUT_DIR` | Directory for generated plugins              | No               |
+| `ARTIFACTS_DIR`      | Directory for build artifacts                | No               |
+| `CLAUDE_MODEL`       | Claude model to use (e.g. `claude-opus-4-5`) | No               |
+| `WEBHOOK_SECRET`     | GitHub webhook secret                        | For webhook mode |
+| `WEBHOOK_PORT`       | Webhook server port                          | For webhook mode |
 
 ### Claude Code CLI Authentication
 
@@ -167,12 +168,56 @@ Maintainers can comment `/publish` on `completed` issues to:
 # Install dependencies
 npm install
 
-# Process a specific issue
-node src/process-issue.js <issue-number>
-
 # Run webhook server
 FACTORY_MODE=webhook node src/index.js
 ```
+
+### CLI Reference
+
+The main entry point for manual operations is `src/process-issue.js`:
+
+```bash
+node src/process-issue.js [issue-number] [flags]
+```
+
+#### Commands / Flags
+
+| Flag             | Description                                                                       |
+| ---------------- | --------------------------------------------------------------------------------- |
+| _(none)_         | Process all pending issues (no issue number) or fully generate the given issue    |
+| `--fix`          | Read latest feedback comment on the issue, regenerate fix, rebuild and re-publish |
+| `--resume`       | Resume an interrupted Claude Code session for the issue (continue where left off) |
+| `--publish-only` | Skip AI generation; rebuild & publish the existing local plugin for the issue     |
+| `--model <name>` | Override the Claude model (also supports `--model=<name>` and `CLAUDE_MODEL` env) |
+
+#### Examples
+
+```bash
+# Process all new issues
+node src/process-issue.js
+
+# Fully generate plugin for issue #5
+node src/process-issue.js 5
+
+# Fix plugin for issue #5 based on latest feedback comment
+node src/process-issue.js 5 --fix
+
+# Resume interrupted Claude Code session for issue #5
+node src/process-issue.js 5 --resume
+
+# Rebuild & re-publish existing plugin for issue #5 (no AI)
+node src/process-issue.js 5 --publish-only
+
+# Use a specific Claude model
+node src/process-issue.js 5 --model claude-opus-4-5
+node src/process-issue.js 5 --fix --model=claude-sonnet-4-5
+CLAUDE_MODEL=claude-opus-4-5 node src/process-issue.js 5
+```
+
+### Publishing Model
+
+- **Source code** (`plugins/issue-N/<plugin-name>/` without `dist/`, `node_modules/`, `*.tgz`) is committed to a branch `plugin/issue-N-<plugin-name>`, making it reviewable and mergeable.
+- **Build artifact** (`.tgz`) is uploaded to a **GitHub Release** tagged `plugin-issue-N`. Re-running `--fix` or `--publish-only` replaces the existing asset.
 
 ### Adding New Device Types
 
