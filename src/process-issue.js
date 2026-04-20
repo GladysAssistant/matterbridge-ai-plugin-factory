@@ -349,23 +349,19 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     // Fetch latest and create branch from main
     execSync("git fetch origin main", { cwd: repoRoot, stdio: "inherit" });
 
-    // Resolve absolute paths and save copies to temp location
+    // Resolve absolute paths and save copy of source to temp location
     const absPluginDir = path.resolve(pluginDir);
-    const absArtifactPath = path.resolve(artifactPath);
-    const artifactName = path.basename(artifactPath);
 
-    // Copy to temp location OUTSIDE repo before switching branches
+    // Copy source to temp location OUTSIDE repo before switching branches
     const tempDir = path.join(
       "/tmp",
       `matterbridge-publish-${issueNumber}-${Date.now()}`,
     );
     const tempPluginDir = path.join(tempDir, pluginName);
-    const tempArtifactPath = path.join(tempDir, artifactName);
 
     await fs.mkdir(tempDir, { recursive: true });
     execSync(`cp -r "${absPluginDir}" "${tempDir}/"`, { stdio: "inherit" });
-    execSync(`cp "${absArtifactPath}" "${tempDir}/"`, { stdio: "inherit" });
-    console.log(`   Copied files to temp location: ${tempDir}`);
+    console.log(`   Copied source to temp location: ${tempDir}`);
 
     // Make sure we're on main first
     execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
@@ -383,50 +379,41 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
-    // Target directories in repo
+    // Target directory in repo
     const repoPluginDir = path.join(
       repoRoot,
       "plugins",
       `issue-${issueNumber}`,
     );
-    const repoArtifactDir = path.join(
-      repoRoot,
-      "artifacts",
-      `issue-${issueNumber}`,
-    );
 
-    // Create directories and copy from temp
+    // Create directory and copy source from temp
     await fs.mkdir(repoPluginDir, { recursive: true });
-    await fs.mkdir(repoArtifactDir, { recursive: true });
-
     execSync(`cp -r "${tempPluginDir}" "${repoPluginDir}/"`, {
       stdio: "inherit",
     });
-    execSync(`cp "${tempArtifactPath}" "${repoArtifactDir}/"`, {
-      stdio: "inherit",
-    });
-    console.log("   Copied files to branch");
+    console.log("   Copied source files to branch");
 
-    // Remove node_modules before committing
-    const destNodeModules = path.join(
-      repoPluginDir,
-      pluginName,
-      "node_modules",
-    );
-    execSync(`rm -rf "${destNodeModules}"`, { stdio: "pipe" });
-    console.log("   Removed node_modules");
+    // Remove build artifacts before committing (kept only for local testing)
+    const destPluginPath = path.join(repoPluginDir, pluginName);
+    for (const d of ["node_modules", "dist"]) {
+      execSync(`rm -rf "${path.join(destPluginPath, d)}"`, { stdio: "pipe" });
+    }
+    execSync(`find "${destPluginPath}" -name "*.tgz" -delete`, {
+      stdio: "pipe",
+    });
+    execSync(`find "${destPluginPath}" -name "*.tsbuildinfo" -delete`, {
+      stdio: "pipe",
+    });
+    console.log("   Cleaned build artifacts");
 
     // Clean up temp
     execSync(`rm -rf "${tempDir}"`, { stdio: "inherit" });
 
-    // Add plugin and artifact files (force to override .gitignore, exclude node_modules)
-    execSync(
-      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber} -- ':!**/node_modules/**'`,
-      {
-        cwd: repoRoot,
-        stdio: "inherit",
-      },
-    );
+    // Add only source files (respects .gitignore)
+    execSync(`git add plugins/issue-${issueNumber}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
 
     execSync(
       `git commit -m "feat: Add ${pluginName} for issue #${issueNumber}"`,
@@ -442,8 +429,12 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     // Switch back to main
     execSync("git checkout main", { cwd: repoRoot, stdio: "inherit" });
 
-    // Return the raw download URL for the artifact
-    const artifactUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${branchName}/artifacts/issue-${issueNumber}/${artifactName}`;
+    // Upload .tgz to GitHub release
+    const artifactUrl = await uploadToRelease(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
     const branchUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${branchName}`;
 
     console.log(`✅ Plugin published to: ${branchUrl}`);
@@ -461,7 +452,6 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
 async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
   const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
   const repoRoot = path.resolve(__dirname, "..");
-  const artifactName = path.basename(artifactPath);
 
   console.log(`📤 Committing fix to branch: ${branchName}`);
 
@@ -491,49 +481,54 @@ async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
-    // Ensure artifact directory exists (artifact is already in place from buildPlugin)
-    const repoArtifactDir = path.join(
-      repoRoot,
-      "artifacts",
-      `issue-${issueNumber}`,
-    );
-    await fs.mkdir(repoArtifactDir, { recursive: true });
-
-    // Remove node_modules before committing
-    const pluginNodeModules = path.join(
+    // Remove build artifacts before committing
+    const pluginPath = path.join(
       repoRoot,
       "plugins",
       `issue-${issueNumber}`,
       pluginName,
-      "node_modules",
     );
-    execSync(`rm -rf "${pluginNodeModules}"`, { stdio: "pipe" });
+    for (const d of ["node_modules", "dist"]) {
+      execSync(`rm -rf "${path.join(pluginPath, d)}"`, { stdio: "pipe" });
+    }
+    execSync(`find "${pluginPath}" -name "*.tgz" -delete`, { stdio: "pipe" });
+    execSync(`find "${pluginPath}" -name "*.tsbuildinfo" -delete`, {
+      stdio: "pipe",
+    });
 
-    // Add all changes
-    execSync(
-      `git add -f plugins/issue-${issueNumber} artifacts/issue-${issueNumber}`,
-      {
+    // Add only source files (respects .gitignore)
+    execSync(`git add plugins/issue-${issueNumber}`, {
+      cwd: repoRoot,
+      stdio: "inherit",
+    });
+
+    // Commit only if there are changes
+    try {
+      execSync(`git commit -m "fix: Update ${pluginName} based on feedback"`, {
         cwd: repoRoot,
         stdio: "inherit",
-      },
-    );
+      });
 
-    // Commit the fix
-    execSync(`git commit -m "fix: Update ${pluginName} based on feedback"`, {
-      cwd: repoRoot,
-      stdio: "inherit",
-    });
-
-    // Push to branch
-    execSync(`git push origin ${branchName}`, {
-      cwd: repoRoot,
-      stdio: "inherit",
-    });
+      // Push to branch
+      execSync(`git push origin ${branchName}`, {
+        cwd: repoRoot,
+        stdio: "inherit",
+      });
+    } catch {
+      console.log(
+        "   No source changes to commit (only build artifacts changed)",
+      );
+    }
 
     // Switch back to main
     execSync("git checkout main", { cwd: repoRoot, stdio: "inherit" });
 
-    const artifactUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/raw/${branchName}/artifacts/issue-${issueNumber}/${artifactName}`;
+    // Upload updated .tgz to GitHub release (replaces existing asset)
+    const artifactUrl = await uploadToRelease(
+      issueNumber,
+      pluginName,
+      artifactPath,
+    );
     const branchUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${branchName}`;
 
     console.log(`✅ Fix published to: ${branchUrl}`);
@@ -542,6 +537,72 @@ async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
     console.error("Failed to publish fix:", error.message);
     throw error;
   }
+}
+
+/**
+ * Create or update a GitHub release for the issue and upload the plugin .tgz
+ */
+async function uploadToRelease(issueNumber, pluginName, artifactPath) {
+  const tag = `plugin-issue-${issueNumber}`;
+  const artifactName = path.basename(artifactPath);
+
+  console.log(`📦 Uploading to GitHub release: ${tag}`);
+
+  // Find or create release
+  let release;
+  try {
+    const { data } = await octokit.repos.getReleaseByTag({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      tag,
+    });
+    release = data;
+    console.log(`   Found existing release: ${tag}`);
+  } catch (err) {
+    if (err.status === 404) {
+      const { data } = await octokit.repos.createRelease({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        tag_name: tag,
+        name: `Plugin for issue #${issueNumber}: ${pluginName}`,
+        body: `Automated build of \`${pluginName}\` for issue #${issueNumber}.\n\nDownload the \`.tgz\` below and install via Matterbridge UI.`,
+        draft: false,
+        prerelease: false,
+      });
+      release = data;
+      console.log(`   Created release: ${tag}`);
+    } else {
+      throw err;
+    }
+  }
+
+  // Delete existing asset with same name (to replace)
+  const existingAsset = release.assets.find((a) => a.name === artifactName);
+  if (existingAsset) {
+    console.log(`   Deleting existing asset: ${artifactName}`);
+    await octokit.repos.deleteReleaseAsset({
+      owner: REPO_OWNER,
+      repo: REPO_NAME,
+      asset_id: existingAsset.id,
+    });
+  }
+
+  // Upload new asset
+  const fileData = await fs.readFile(artifactPath);
+  const { data: asset } = await octokit.repos.uploadReleaseAsset({
+    owner: REPO_OWNER,
+    repo: REPO_NAME,
+    release_id: release.id,
+    name: artifactName,
+    data: fileData,
+    headers: {
+      "content-type": "application/gzip",
+      "content-length": fileData.length,
+    },
+  });
+
+  console.log(`✅ Uploaded asset: ${asset.browser_download_url}`);
+  return asset.browser_download_url;
 }
 
 /**

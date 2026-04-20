@@ -34,3 +34,9 @@ tmp/
 temp/
 *.tmp
 .tmp-publish/
+
+# npm pack output
+*.tgz
+
+# TypeScript build info
+*.tsbuildinfo
