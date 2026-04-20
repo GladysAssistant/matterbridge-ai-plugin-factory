@@ -122,7 +122,7 @@ matterbridge-ai-plugin-factory/
 | `GITHUB_REPO_NAME`   | Repository name                              | Yes              |
 | `PLUGINS_OUTPUT_DIR` | Directory for generated plugins              | No               |
 | `ARTIFACTS_DIR`      | Directory for build artifacts                | No               |
-| `CLAUDE_MODEL`       | Claude model to use (e.g. `claude-opus-4-5`) | No               |
+| `CLAUDE_MODEL`       | Claude model to use (e.g. `claude-opus-4-7`) | No               |
 | `WEBHOOK_SECRET`     | GitHub webhook secret                        | For webhook mode |
 | `WEBHOOK_PORT`       | Webhook server port                          | For webhook mode |
 
@@ -209,9 +209,24 @@ node src/process-issue.js 5 --resume
 node src/process-issue.js 5 --publish-only
 
 # Use a specific Claude model
-node src/process-issue.js 5 --model claude-opus-4-5
-node src/process-issue.js 5 --fix --model=claude-sonnet-4-5
-CLAUDE_MODEL=claude-opus-4-5 node src/process-issue.js 5
+node src/process-issue.js 5 --model claude-opus-4-7
+node src/process-issue.js 5 --fix --model=claude-opus-4-7
+CLAUDE_MODEL=claude-opus-4-7 node src/process-issue.js 5
+```
+
+### Daily CRON (Process One Issue Per Day)
+
+`src/process-next-issue.js` fetches the **oldest** open issue with labels `plugin-request` + `pending-review` and generates a single plugin, then exits. Perfect for a daily cron:
+
+```bash
+node src/process-next-issue.js
+node src/process-next-issue.js --model claude-opus-4-7
+```
+
+Example crontab (runs every day at 6:00 AM):
+
+```
+0 6 * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-next-issue.js >> /var/log/matterbridge-factory.log 2>&1
 ```
 
 ### Publishing Model
