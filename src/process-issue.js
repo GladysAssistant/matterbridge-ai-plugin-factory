@@ -230,7 +230,7 @@ ${integrations.map((url) => url).join("\n")}
 Capabilities needed: ${parsedData.deviceCapabilities.join(", ")}
 ${parsedData.additionalContext ? `Context: ${parsedData.additionalContext}` : ""}
 
-Output to: ${PLUGINS_DIR}/issue-${issueNumber}/${pluginName}`;
+Create the plugin in the CURRENT working directory. The plugin folder name MUST be exactly "${pluginName}" (no nesting, no subdirectories). After cloning the template, you must end up with ./${pluginName}/package.json relative to CWD.`;
 }
 
 /**
@@ -618,6 +618,14 @@ async function uploadToRelease(issueNumber, pluginName, artifactPath) {
 async function buildPlugin(issueNumber, pluginName) {
   const pluginDir = path.join(PLUGINS_DIR, `issue-${issueNumber}`, pluginName);
   const artifactDir = path.join(ARTIFACTS_DIR, `issue-${issueNumber}`);
+
+  try {
+    await fs.access(pluginDir);
+  } catch {
+    throw new Error(
+      `Plugin directory not found: ${pluginDir}. Claude may have placed the plugin in an unexpected location.`,
+    );
+  }
 
   await fs.mkdir(artifactDir, { recursive: true });
 
