@@ -229,6 +229,21 @@ Example crontab (runs every day at 6:00 AM):
 0 6 * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-next-issue.js >> /var/log/matterbridge-factory.log 2>&1
 ```
 
+### Daily CRON (Process One Fix Per Day)
+
+`src/process-next-fix.js` finds the oldest issue labeled `ready-for-testing` whose **latest comment is from a human** (i.e. the user left feedback after the last bot reply) and runs `--fix` on it, then exits.
+
+```bash
+node src/process-next-fix.js
+node src/process-next-fix.js --model claude-opus-4-7
+```
+
+Example crontab (runs every day at 7:00 AM, one hour after new-issue generation):
+
+```
+0 7 * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-next-fix.js >> /var/log/matterbridge-factory.log 2>&1
+```
+
 ### Publishing Model
 
 - **Source code** (`plugins/issue-N/<plugin-name>/` without `dist/`, `node_modules/`, `*.tgz`) is committed to a branch `plugin/issue-N-<plugin-name>`, making it reviewable and mergeable.
