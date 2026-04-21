@@ -54,15 +54,19 @@ await this.registerDevice(device);
 
 ## MANDATORY: Test Before Done
 
+Use `timeout` so matterbridge CANNOT keep running past 60s (critical — leaking processes eat CPU forever):
+
 ```bash
 npm install
 npm link matterbridge
 npm run build
 matterbridge -add .
-matterbridge -bridge &
-sleep 60
-pkill -f "matterbridge -bridge"
+timeout --signal=SIGINT --kill-after=10s 60s matterbridge -bridge || true
+# Extra safety: ensure nothing survives
+pkill -9 -f "matterbridge -bridge" 2>/dev/null || true
 ```
+
+**NEVER** run `matterbridge -bridge &` in the background — always use `timeout` in the foreground so the process is guaranteed to be killed.
 
 **IMPORTANT:** `npm link matterbridge` MUST run before `npm run build` so TypeScript can find matterbridge types.
 

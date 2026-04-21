@@ -234,9 +234,25 @@ Create the plugin in the CURRENT working directory. The plugin folder name MUST 
 }
 
 /**
+ * Kill any stray matterbridge processes left over from previous runs.
+ * Safe to call at any time — never throws.
+ */
+function killStrayMatterbridge() {
+  try {
+    execSync('pkill -9 -f "matterbridge -bridge"', { stdio: "pipe" });
+    console.log("🧹 Killed stray matterbridge processes");
+  } catch {
+    // pkill exits 1 when no process matched — that's fine
+  }
+}
+
+/**
  * Run Claude Code CLI to generate the plugin
  */
 async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
+  // Clean up before and after to prevent stuck processes eating CPU
+  killStrayMatterbridge();
+
   return new Promise((resolve, reject) => {
     const promptFile = path.join(workDir, "prompt.md");
 
@@ -313,6 +329,7 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         });
 
         claude.on("close", (code) => {
+          killStrayMatterbridge();
           if (code === 0) {
             resolve({ success: true });
           } else {
@@ -321,6 +338,7 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         });
 
         claude.on("error", (err) => {
+          killStrayMatterbridge();
           reject(err);
         });
       })
