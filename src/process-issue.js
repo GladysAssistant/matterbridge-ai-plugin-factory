@@ -234,6 +234,78 @@ Create the plugin in the CURRENT working directory. The plugin folder name MUST 
 }
 
 /**
+ * Ensure the repo working tree is in a clean state before starting work.
+ * - Resets any tracked-file changes
+ * - Removes untracked files (including gitignored leftovers like plugins/issue-*)
+ * - Switches to main and pulls latest
+ * - Kills any stray matterbridge processes
+ *
+ * Files preserved regardless: `.env`, `node_modules/` (factory deps),
+ * `/home/matterbridge/logs/` (outside the repo).
+ *
+ * Throws on any unrecoverable git error.
+ */
+async function ensureCleanWorkspace() {
+  const repoRoot = path.resolve(__dirname, "..");
+  console.log("🧼 Ensuring clean workspace...");
+
+  killStrayMatterbridge();
+
+  // Preserve .env by staging it out (it's gitignored so clean -fdx would nuke it)
+  const envPath = path.join(repoRoot, ".env");
+  const envBackup = `/tmp/.env.factory-backup-${Date.now()}`;
+  let envSaved = false;
+  try {
+    await fs.access(envPath);
+    execSync(`cp "${envPath}" "${envBackup}"`, { stdio: "pipe" });
+    envSaved = true;
+  } catch {
+    // .env doesn't exist — nothing to preserve
+  }
+
+  try {
+    // Discard tracked changes
+    execSync("git reset --hard HEAD", { cwd: repoRoot, stdio: "pipe" });
+
+    // Remove all untracked files INCLUDING gitignored ones
+    // (this wipes plugins/issue-*, artifacts/issue-*, *.tgz, etc.)
+    // We exclude node_modules so we don't have to reinstall factory deps every run.
+    execSync("git clean -fdx -e node_modules", {
+      cwd: repoRoot,
+      stdio: "pipe",
+    });
+
+    // Make sure we're on main and up-to-date
+    execSync("git fetch origin main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git reset --hard origin/main", { cwd: repoRoot, stdio: "pipe" });
+
+    console.log("✅ Workspace is clean and on main @ origin/main");
+  } finally {
+    // Restore .env
+    if (envSaved) {
+      execSync(`cp "${envBackup}" "${envPath}"`, { stdio: "pipe" });
+      execSync(`rm -f "${envBackup}"`, { stdio: "pipe" });
+    }
+  }
+}
+
+/**
+ * Checkout an existing plugin branch so its files are available in the working tree.
+ * Used by --fix flows to make sure the plugin source is present before running Claude.
+ */
+async function checkoutPluginBranch(branchName) {
+  const repoRoot = path.resolve(__dirname, "..");
+  console.log(`🔀 Checking out plugin branch: ${branchName}`);
+  execSync(`git fetch origin ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
+  execSync(`git checkout ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
+  execSync(`git reset --hard origin/${branchName}`, {
+    cwd: repoRoot,
+    stdio: "pipe",
+  });
+}
+
+/**
  * Kill any stray matterbridge processes left over from previous runs.
  * Safe to call at any time — never throws.
  */
@@ -1190,18 +1262,33 @@ async function processFeedback(issueNumber) {
 
     const parsedData = parseIssueBody(issue.body || "");
     const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
+    const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
     const pluginDir = path.join(
       PLUGINS_DIR,
       `issue-${issueNumber}`,
       pluginName,
     );
 
-    // Check if plugin exists
+    // Ensure the plugin source is present in the working tree by checking out
+    // the plugin branch. Safe because we expect the caller (cron wrapper or
+    // user) to have run `ensureCleanWorkspace` beforehand.
+    try {
+      await checkoutPluginBranch(branchName);
+    } catch (err) {
+      console.error(
+        `❌ Could not checkout branch ${branchName}: ${err.message}`,
+      );
+      console.log("Run without --fix to generate the plugin first.");
+      process.exit(1);
+    }
+
+    // Verify plugin dir now exists
     try {
       await fs.access(pluginDir);
     } catch {
-      console.error(`❌ Plugin directory not found: ${pluginDir}`);
-      console.log("Run without --fix to generate the plugin first.");
+      console.error(
+        `❌ Plugin directory not found after branch checkout: ${pluginDir}`,
+      );
       process.exit(1);
     }
 
@@ -1252,11 +1339,13 @@ I'll post an updated plugin when ready.
 
     // Publish fix to existing branch
     console.log("📤 Publishing fix to branch...");
-    const { artifactUrl, branchUrl, branchName } = await publishFixToBranch(
-      issueNumber,
-      pluginName,
-      artifactPath,
-    );
+    const {
+      artifactUrl,
+      branchUrl,
+      branchName: publishedBranchName,
+    } = await publishFixToBranch(issueNumber, pluginName, artifactPath);
+    // keep a reference without shadowing the outer branchName
+    void publishedBranchName;
 
     // Post success comment
     await postComment(
@@ -1364,4 +1453,6 @@ module.exports = {
   resumeWork,
   parseIssueBody,
   validateRequest,
+  ensureCleanWorkspace,
+  checkoutPluginBranch,
 };

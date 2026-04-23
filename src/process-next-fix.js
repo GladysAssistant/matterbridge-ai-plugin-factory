@@ -34,7 +34,7 @@ require("dotenv").config();
 })();
 
 const { Octokit } = require("@octokit/rest");
-const { processFeedback } = require("./process-issue");
+const { processFeedback, ensureCleanWorkspace } = require("./process-issue");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -55,6 +55,8 @@ function isBotComment(comment) {
 }
 
 async function processNextFix() {
+  await ensureCleanWorkspace();
+
   console.log("🔍 Looking for the oldest issue needing a fix...");
 
   const issues = await octokit.paginate(octokit.issues.listForRepo, {

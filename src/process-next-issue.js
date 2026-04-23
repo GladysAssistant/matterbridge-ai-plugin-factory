@@ -30,7 +30,7 @@ require("dotenv").config();
 })();
 
 const { Octokit } = require("@octokit/rest");
-const { processIssue } = require("./process-issue");
+const { processIssue, ensureCleanWorkspace } = require("./process-issue");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -49,6 +49,8 @@ const PROCESSED_LABELS = new Set([
 ]);
 
 async function processNextIssue() {
+  await ensureCleanWorkspace();
+
   console.log("🔍 Looking for the oldest never-generated plugin request...");
 
   // Fetch all open issues (paginated) and filter client-side so that issues
