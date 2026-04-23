@@ -85,16 +85,20 @@ async function processNextFix() {
 
   // Find the first issue whose latest comment is from a human
   for (const issue of openIssues) {
-    const { data: comments } = await octokit.issues.listComments({
+    // Fetch only the most recent comment (sorted desc), regardless of how
+    // many comments the issue has in total.
+    const { data: recent } = await octokit.issues.listComments({
       owner: REPO_OWNER,
       repo: REPO_NAME,
       issue_number: issue.number,
-      per_page: 100,
+      sort: "created",
+      direction: "desc",
+      per_page: 1,
     });
 
-    if (comments.length === 0) continue;
+    if (recent.length === 0) continue;
 
-    const lastComment = comments[comments.length - 1];
+    const lastComment = recent[0];
     if (isBotComment(lastComment)) continue;
 
     const jobName = `fix #${issue.number}`;
