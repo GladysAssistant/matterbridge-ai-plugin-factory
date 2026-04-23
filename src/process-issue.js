@@ -493,6 +493,32 @@ async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
       });
     }
 
+    // Save the modified plugin dir to a temp location before switching branches.
+    // This is needed because `--fix` may be run from main, where the plugin
+    // files are untracked but tracked on the target branch — git checkout
+    // would refuse to overwrite them.
+    const issueDir = path.join(repoRoot, "plugins", `issue-${issueNumber}`);
+    const pluginPath = path.join(issueDir, pluginName);
+    const tempDir = path.join(
+      "/tmp",
+      `matterbridge-fix-${issueNumber}-${Date.now()}`,
+    );
+    await fs.mkdir(tempDir, { recursive: true });
+    const tempPluginPath = path.join(tempDir, pluginName);
+
+    try {
+      await fs.access(pluginPath);
+      execSync(`cp -r "${pluginPath}" "${tempDir}/"`, { stdio: "inherit" });
+      console.log(`   Saved modified plugin to ${tempPluginPath}`);
+    } catch {
+      throw new Error(
+        `Expected modified plugin at ${pluginPath} but it does not exist`,
+      );
+    }
+
+    // Remove the untracked plugin dir so git checkout can proceed
+    execSync(`rm -rf "${issueDir}"`, { stdio: "pipe" });
+
     // Checkout the existing plugin branch
     execSync(`git fetch origin ${branchName}`, {
       cwd: repoRoot,
@@ -506,13 +532,13 @@ async function publishFixToBranch(issueNumber, pluginName, artifactPath) {
       stdio: "inherit",
     });
 
+    // Replace branch's plugin dir with the modified one from temp
+    execSync(`rm -rf "${pluginPath}"`, { stdio: "pipe" });
+    await fs.mkdir(issueDir, { recursive: true });
+    execSync(`cp -r "${tempPluginPath}" "${issueDir}/"`, { stdio: "inherit" });
+    execSync(`rm -rf "${tempDir}"`, { stdio: "pipe" });
+
     // Remove build artifacts before committing
-    const pluginPath = path.join(
-      repoRoot,
-      "plugins",
-      `issue-${issueNumber}`,
-      pluginName,
-    );
     for (const d of ["node_modules", "dist"]) {
       execSync(`rm -rf "${path.join(pluginPath, d)}"`, { stdio: "pipe" });
     }
