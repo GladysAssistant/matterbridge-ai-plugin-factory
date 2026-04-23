@@ -83,22 +83,28 @@ async function processNextFix() {
     return;
   }
 
-  // Find the first issue whose latest comment is from a human
+  // Find the first issue whose latest comment is from a human.
+  // NOTE: GitHub's `/issues/{N}/comments` endpoint ignores `sort`/`direction`
+  // (unlike the repo-wide comments endpoint). To get the most recent comment
+  // we jump to the last page using the total comment count from the issue.
   for (const issue of openIssues) {
-    // Fetch only the most recent comment (sorted desc), regardless of how
-    // many comments the issue has in total.
-    const { data: recent } = await octokit.issues.listComments({
+    const totalComments = issue.comments || 0;
+    if (totalComments === 0) continue;
+
+    const perPage = 100;
+    const lastPage = Math.ceil(totalComments / perPage);
+
+    const { data: comments } = await octokit.issues.listComments({
       owner: REPO_OWNER,
       repo: REPO_NAME,
       issue_number: issue.number,
-      sort: "created",
-      direction: "desc",
-      per_page: 1,
+      per_page: perPage,
+      page: lastPage,
     });
 
-    if (recent.length === 0) continue;
+    if (comments.length === 0) continue;
 
-    const lastComment = recent[0];
+    const lastComment = comments[comments.length - 1];
     if (isBotComment(lastComment)) continue;
 
     const jobName = `fix #${issue.number}`;
