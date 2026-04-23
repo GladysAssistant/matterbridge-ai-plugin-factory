@@ -395,6 +395,15 @@ async function publishPluginToBranch(issueNumber, pluginName, artifactPath) {
     execSync(`cp -r "${absPluginDir}" "${tempDir}/"`, { stdio: "inherit" });
     console.log(`   Copied source to temp location: ${tempDir}`);
 
+    // Remove any working-tree changes that would block checkout.
+    // The plugin files we care about are already safely copied to tempDir above.
+    const issueDir = path.join(repoRoot, "plugins", `issue-${issueNumber}`);
+    execSync(`rm -rf "${issueDir}"`, { stdio: "pipe" });
+    // Discard any remaining tracked-file changes so `git checkout main` succeeds
+    execSync("git checkout -- .", { cwd: repoRoot, stdio: "pipe" });
+    // Also remove any other untracked files/dirs left by Claude
+    execSync("git clean -fd", { cwd: repoRoot, stdio: "pipe" });
+
     // Make sure we're on main first
     execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
 
