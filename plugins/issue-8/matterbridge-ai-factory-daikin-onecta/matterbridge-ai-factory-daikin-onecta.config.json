@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-daikin-onecta",
+  "type": "DynamicPlatform",
+  "email": "",
+  "password": "",
+  "tokenFile": "",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
