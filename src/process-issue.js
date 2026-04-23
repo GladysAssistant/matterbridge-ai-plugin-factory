@@ -328,10 +328,17 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           console.error(data.toString());
         });
 
-        claude.on("close", (code) => {
+        claude.on("close", (code, signal) => {
           killStrayMatterbridge();
           if (code === 0) {
             resolve({ success: true });
+          } else if (code === null) {
+            reject(
+              new Error(
+                `Claude CLI was killed by signal ${signal || "unknown"} ` +
+                  `(likely OOM — check "dmesg | grep -i killed" and consider adding swap)`,
+              ),
+            );
           } else {
             reject(new Error(`Claude CLI exited with code ${code}`));
           }
