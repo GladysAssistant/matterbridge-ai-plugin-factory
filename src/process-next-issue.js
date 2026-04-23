@@ -31,6 +31,12 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { processIssue, ensureCleanWorkspace } = require("./process-issue");
+const {
+  notifyStart,
+  notifySuccess,
+  notifyFailure,
+  notifyInfo,
+} = require("./telegram");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -75,16 +81,27 @@ async function processNextIssue() {
 
   if (candidates.length === 0) {
     console.log("✅ No never-generated issues found. Nothing to do.");
+    await notifyInfo("process-next-issue", "No pending issues to generate.");
     return;
   }
 
   const issue = candidates[0];
+  const jobName = `generate #${issue.number}`;
+  const summary = `*${issue.title}*\nhttps://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+
   console.log(
     `➡️  Processing issue #${issue.number}: ${issue.title} (created ${issue.created_at})`,
   );
+  await notifyStart(jobName, summary);
 
-  await processIssue(issue);
-  console.log(`✅ Finished processing issue #${issue.number}`);
+  try {
+    await processIssue(issue);
+    console.log(`✅ Finished processing issue #${issue.number}`);
+    await notifySuccess(jobName, summary);
+  } catch (err) {
+    await notifyFailure(jobName, err);
+    throw err;
+  }
 }
 
 if (require.main === module) {

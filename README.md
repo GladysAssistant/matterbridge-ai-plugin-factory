@@ -115,16 +115,18 @@ matterbridge-ai-plugin-factory/
 
 ### Environment Variables
 
-| Variable             | Description                                  | Required         |
-| -------------------- | -------------------------------------------- | ---------------- |
-| `GITHUB_TOKEN`       | GitHub PAT with repo access                  | Yes              |
-| `GITHUB_REPO_OWNER`  | Repository owner                             | Yes              |
-| `GITHUB_REPO_NAME`   | Repository name                              | Yes              |
-| `PLUGINS_OUTPUT_DIR` | Directory for generated plugins              | No               |
-| `ARTIFACTS_DIR`      | Directory for build artifacts                | No               |
-| `CLAUDE_MODEL`       | Claude model to use (e.g. `claude-opus-4-7`) | No               |
-| `WEBHOOK_SECRET`     | GitHub webhook secret                        | For webhook mode |
-| `WEBHOOK_PORT`       | Webhook server port                          | For webhook mode |
+| Variable             | Description                                  | Required          |
+| -------------------- | -------------------------------------------- | ----------------- |
+| `GITHUB_TOKEN`       | GitHub PAT with repo access                  | Yes               |
+| `GITHUB_REPO_OWNER`  | Repository owner                             | Yes               |
+| `GITHUB_REPO_NAME`   | Repository name                              | Yes               |
+| `PLUGINS_OUTPUT_DIR` | Directory for generated plugins              | No                |
+| `ARTIFACTS_DIR`      | Directory for build artifacts                | No                |
+| `CLAUDE_MODEL`       | Claude model to use (e.g. `claude-opus-4-7`) | No                |
+| `WEBHOOK_SECRET`     | GitHub webhook secret                        | For webhook mode  |
+| `WEBHOOK_PORT`       | Webhook server port                          | For webhook mode  |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token (from @BotFather)         | For notifications |
+| `TELEGRAM_CHAT_ID`   | Telegram chat ID to send messages to         | For notifications |
 
 ### Claude Code CLI Authentication
 

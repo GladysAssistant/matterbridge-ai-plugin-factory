@@ -35,6 +35,12 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { processFeedback, ensureCleanWorkspace } = require("./process-issue");
+const {
+  notifyStart,
+  notifySuccess,
+  notifyFailure,
+  notifyInfo,
+} = require("./telegram");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -91,16 +97,27 @@ async function processNextFix() {
     const lastComment = comments[comments.length - 1];
     if (isBotComment(lastComment)) continue;
 
+    const jobName = `fix #${issue.number}`;
+    const summary = `*${issue.title}*\nFeedback by @${lastComment.user.login}\nhttps://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+
     console.log(
       `➡️  Fixing issue #${issue.number}: ${issue.title} (last feedback by @${lastComment.user.login} at ${lastComment.created_at})`,
     );
+    await notifyStart(jobName, summary);
 
-    await processFeedback(issue.number);
-    console.log(`✅ Finished fixing issue #${issue.number}`);
+    try {
+      await processFeedback(issue.number);
+      console.log(`✅ Finished fixing issue #${issue.number}`);
+      await notifySuccess(jobName, summary);
+    } catch (err) {
+      await notifyFailure(jobName, err);
+      throw err;
+    }
     return;
   }
 
   console.log("✅ No issues with pending user feedback. Nothing to do.");
+  await notifyInfo("process-next-fix", "No issues with pending feedback.");
 }
 
 if (require.main === module) {
