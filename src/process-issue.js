@@ -133,14 +133,78 @@ function extractLatestFeedback(comments) {
 }
 
 /**
- * Create a feedback/fix prompt for Claude
+ * Extract image URLs from a GitHub comment body (markdown + HTML).
+ * Returns a list of absolute image URLs.
  */
-function createFeedbackPrompt(issueNumber, parsedData, feedback, pluginName) {
+function extractImageUrls(body) {
+  const urls = new Set();
+  // Markdown: ![alt](url)
+  const mdRe = /!\[[^\]]*\]\(([^)]+)\)/g;
+  let m;
+  while ((m = mdRe.exec(body)) !== null) urls.add(m[1].trim());
+  // HTML: <img src="..." />
+  const imgRe = /<img[^>]+src=["']([^"']+)["']/gi;
+  while ((m = imgRe.exec(body)) !== null) urls.add(m[1].trim());
+  // Plain user-attachments links (GitHub auto-converts drag-dropped files)
+  const plainRe =
+    /https:\/\/github\.com\/user-attachments\/assets\/[a-z0-9-]+/gi;
+  while ((m = plainRe.exec(body)) !== null) urls.add(m[0]);
+  return Array.from(urls);
+}
+
+/**
+ * Download an image URL to the given directory. Returns the absolute local path
+ * or null on failure. Never throws.
+ */
+async function downloadImage(url, destDir, index) {
+  try {
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) {
+      console.warn(`   ⚠️  Failed to download ${url}: HTTP ${res.status}`);
+      return null;
+    }
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      console.warn(`   ⚠️  Skipping non-image URL ${url} (${contentType})`);
+      return null;
+    }
+    const ext = contentType.split("/")[1].split(";")[0].split("+")[0] || "bin";
+    const buf = Buffer.from(await res.arrayBuffer());
+    const filename = `feedback-image-${index}.${ext}`;
+    const destPath = path.join(destDir, filename);
+    await fs.writeFile(destPath, buf);
+    console.log(`   📥 Downloaded ${url} → ${destPath}`);
+    return destPath;
+  } catch (err) {
+    console.warn(`   ⚠️  Download error for ${url}: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Create a feedback/fix prompt for Claude.
+ * `localImagePaths` is an array of absolute local file paths for images
+ * that were attached to the GitHub comment.
+ */
+function createFeedbackPrompt(
+  issueNumber,
+  parsedData,
+  feedback,
+  pluginName,
+  localImagePaths = [],
+) {
+  const imagesSection =
+    localImagePaths.length > 0
+      ? `\nThe user attached ${localImagePaths.length} image(s). Read them BEFORE fixing (use the Read tool; Claude Code supports image files):
+${localImagePaths.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+`
+      : "";
+
   return `Fix bug in ${pluginName}. Be concise, write code not explanations.
 
 Bug report:
 ${feedback.body}
-
+${imagesSection}
 Fix the code, then test:
 \`\`\`bash
 npm run build && npm install -g . && timeout 30 matterbridge -add ${pluginName} 2>&1 || true && timeout 30 matterbridge -bridge 2>&1 || true
@@ -1321,16 +1385,44 @@ I'll post an updated plugin when ready.
 
     await updateLabels(issueNumber, ["in-progress"], ["ready-for-testing"]);
 
+    // Download any images attached to the feedback so Claude can read them.
+    // Stored in /tmp so they never risk being committed to the plugin branch.
+    const imageUrls = extractImageUrls(feedback.body);
+    const localImagePaths = [];
+    let imagesDir = null;
+    if (imageUrls.length > 0) {
+      console.log(
+        `🖼️  Found ${imageUrls.length} image(s) in feedback, downloading...`,
+      );
+      imagesDir = path.join(
+        "/tmp",
+        `matterbridge-feedback-images-${issueNumber}-${Date.now()}`,
+      );
+      await fs.mkdir(imagesDir, { recursive: true });
+      for (let i = 0; i < imageUrls.length; i++) {
+        const local = await downloadImage(imageUrls[i], imagesDir, i + 1);
+        if (local) localImagePaths.push(local);
+      }
+    }
+
     // Create fix prompt
     const prompt = createFeedbackPrompt(
       issueNumber,
       parsedData,
       feedback,
       pluginName,
+      localImagePaths,
     );
 
     // Run Claude to fix the plugin
-    await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+    try {
+      await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+    } finally {
+      // Clean up feedback images from /tmp (Claude has already read them)
+      if (imagesDir) {
+        execSync(`rm -rf "${imagesDir}"`, { stdio: "pipe" });
+      }
+    }
 
     // Rebuild the plugin
     console.log("📦 Rebuilding plugin...");
