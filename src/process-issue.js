@@ -1526,25 +1526,29 @@ I'll post an updated plugin when ready.
 
     await updateLabels(issueNumber, ["in-progress"], ["ready-for-testing"]);
 
-    // Download any images attached to the feedback so Claude can read them.
-    // Stored in /tmp so they never risk being committed to the plugin branch.
-    const imageUrls = extractImageUrls(feedback.body);
+    // DISABLED: feedback-image download.
+    // Previously we downloaded images from the GitHub comment and passed
+    // their paths to Claude. This caused Claude Code to inject a
+    // "system reminder" (triggered by reading files, esp. outside workDir)
+    // that made it refuse the fix task. Until we find a reliable way to
+    // give Claude image context without triggering this behavior, we fall
+    // back to passing the URLs as text in the feedback body.
+    // const imageUrls = extractImageUrls(feedback.body);
+    // const localImagePaths = [];
+    // let imagesDir = null;
+    // if (imageUrls.length > 0) {
+    //   console.log(
+    //     `🖼️  Found ${imageUrls.length} image(s) in feedback, downloading...`,
+    //   );
+    //   imagesDir = path.join(pluginDir, ".feedback-images");
+    //   await fs.mkdir(imagesDir, { recursive: true });
+    //   for (let i = 0; i < imageUrls.length; i++) {
+    //     const local = await downloadImage(imageUrls[i], imagesDir, i + 1);
+    //     if (local) localImagePaths.push(local);
+    //   }
+    // }
     const localImagePaths = [];
-    let imagesDir = null;
-    if (imageUrls.length > 0) {
-      console.log(
-        `🖼️  Found ${imageUrls.length} image(s) in feedback, downloading...`,
-      );
-      imagesDir = path.join(
-        "/tmp",
-        `matterbridge-feedback-images-${issueNumber}-${Date.now()}`,
-      );
-      await fs.mkdir(imagesDir, { recursive: true });
-      for (let i = 0; i < imageUrls.length; i++) {
-        const local = await downloadImage(imageUrls[i], imagesDir, i + 1);
-        if (local) localImagePaths.push(local);
-      }
-    }
+    const imagesDir = null;
 
     // Create fix prompt
     const prompt = createFeedbackPrompt(
