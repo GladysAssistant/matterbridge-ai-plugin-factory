@@ -31,12 +31,7 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { processIssue, ensureCleanWorkspace } = require("./process-issue");
-const {
-  notifyStart,
-  notifySuccess,
-  notifyFailure,
-  notifyInfo,
-} = require("./telegram");
+const { notifyStart, notifySuccess, notifyFailure } = require("./telegram");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -80,7 +75,6 @@ async function processNextIssue() {
 
   if (candidates.length === 0) {
     console.log("✅ No never-generated issues found. Nothing to do.");
-    await notifyInfo("process-next-issue", "No pending issues to generate.");
     return;
   }
 

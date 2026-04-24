@@ -35,12 +35,7 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { processFeedback, ensureCleanWorkspace } = require("./process-issue");
-const {
-  notifyStart,
-  notifySuccess,
-  notifyFailure,
-  notifyInfo,
-} = require("./telegram");
+const { notifyStart, notifySuccess, notifyFailure } = require("./telegram");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -128,7 +123,6 @@ async function processNextFix() {
   }
 
   console.log("✅ No issues with pending user feedback. Nothing to do.");
-  await notifyInfo("process-next-fix", "No issues with pending feedback.");
 }
 
 if (require.main === module) {
