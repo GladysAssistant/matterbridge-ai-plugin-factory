@@ -62,9 +62,9 @@ npm link matterbridge
 npm run build
 matterbridge -add .
 timeout --signal=SIGINT --kill-after=10s 60s matterbridge -bridge || true
-# Extra safety: ensure nothing survives
-pkill -9 -f "matterbridge -bridge" 2>/dev/null || true
 ```
+
+The `timeout` command guarantees matterbridge dies after 60s. **Do NOT** add any `pkill` / `killall` command after this — such commands can match their own shell cmdline (since the argument literally contains "matterbridge") and self-kill your tool session. `timeout` is sufficient.
 
 **NEVER** run `matterbridge -bridge &` in the background — always use `timeout` in the foreground so the process is guaranteed to be killed.
 

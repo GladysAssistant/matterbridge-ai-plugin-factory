@@ -34,7 +34,13 @@ require("dotenv").config();
 })();
 
 const { Octokit } = require("@octokit/rest");
-const { processFeedback } = require("./process-issue");
+const { processFeedback, ensureCleanWorkspace } = require("./process-issue");
+const {
+  notifyStart,
+  notifySuccess,
+  notifyFailure,
+  notifyInfo,
+} = require("./telegram");
 
 const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN,
@@ -55,6 +61,8 @@ function isBotComment(comment) {
 }
 
 async function processNextFix() {
+  await ensureCleanWorkspace();
+
   console.log("🔍 Looking for the oldest issue needing a fix...");
 
   const issues = await octokit.paginate(octokit.issues.listForRepo, {
@@ -75,13 +83,23 @@ async function processNextFix() {
     return;
   }
 
-  // Find the first issue whose latest comment is from a human
+  // Find the first issue whose latest comment is from a human.
+  // NOTE: GitHub's `/issues/{N}/comments` endpoint ignores `sort`/`direction`
+  // (unlike the repo-wide comments endpoint). To get the most recent comment
+  // we jump to the last page using the total comment count from the issue.
   for (const issue of openIssues) {
+    const totalComments = issue.comments || 0;
+    if (totalComments === 0) continue;
+
+    const perPage = 100;
+    const lastPage = Math.ceil(totalComments / perPage);
+
     const { data: comments } = await octokit.issues.listComments({
       owner: REPO_OWNER,
       repo: REPO_NAME,
       issue_number: issue.number,
-      per_page: 100,
+      per_page: perPage,
+      page: lastPage,
     });
 
     if (comments.length === 0) continue;
@@ -89,16 +107,27 @@ async function processNextFix() {
     const lastComment = comments[comments.length - 1];
     if (isBotComment(lastComment)) continue;
 
+    const jobName = `fix #${issue.number}`;
+    const summary = `*${issue.title}*\nFeedback by @${lastComment.user.login}\nhttps://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+
     console.log(
       `➡️  Fixing issue #${issue.number}: ${issue.title} (last feedback by @${lastComment.user.login} at ${lastComment.created_at})`,
     );
+    await notifyStart(jobName, summary);
 
-    await processFeedback(issue.number);
-    console.log(`✅ Finished fixing issue #${issue.number}`);
+    try {
+      await processFeedback(issue.number);
+      console.log(`✅ Finished fixing issue #${issue.number}`);
+      await notifySuccess(jobName, summary);
+    } catch (err) {
+      await notifyFailure(jobName, err);
+      throw err;
+    }
     return;
   }
 
   console.log("✅ No issues with pending user feedback. Nothing to do.");
+  await notifyInfo("process-next-fix", "No issues with pending feedback.");
 }
 
 if (require.main === module) {

@@ -9,6 +9,7 @@ require("dotenv").config();
 const { Octokit } = require("@octokit/rest");
 const { spawn, execSync } = require("child_process");
 const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
 
 const octokit = new Octokit({
@@ -133,14 +134,78 @@ function extractLatestFeedback(comments) {
 }
 
 /**
- * Create a feedback/fix prompt for Claude
+ * Extract image URLs from a GitHub comment body (markdown + HTML).
+ * Returns a list of absolute image URLs.
  */
-function createFeedbackPrompt(issueNumber, parsedData, feedback, pluginName) {
+function extractImageUrls(body) {
+  const urls = new Set();
+  // Markdown: ![alt](url)
+  const mdRe = /!\[[^\]]*\]\(([^)]+)\)/g;
+  let m;
+  while ((m = mdRe.exec(body)) !== null) urls.add(m[1].trim());
+  // HTML: <img src="..." />
+  const imgRe = /<img[^>]+src=["']([^"']+)["']/gi;
+  while ((m = imgRe.exec(body)) !== null) urls.add(m[1].trim());
+  // Plain user-attachments links (GitHub auto-converts drag-dropped files)
+  const plainRe =
+    /https:\/\/github\.com\/user-attachments\/assets\/[a-z0-9-]+/gi;
+  while ((m = plainRe.exec(body)) !== null) urls.add(m[0]);
+  return Array.from(urls);
+}
+
+/**
+ * Download an image URL to the given directory. Returns the absolute local path
+ * or null on failure. Never throws.
+ */
+async function downloadImage(url, destDir, index) {
+  try {
+    const res = await fetch(url, { redirect: "follow" });
+    if (!res.ok) {
+      console.warn(`   ⚠️  Failed to download ${url}: HTTP ${res.status}`);
+      return null;
+    }
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      console.warn(`   ⚠️  Skipping non-image URL ${url} (${contentType})`);
+      return null;
+    }
+    const ext = contentType.split("/")[1].split(";")[0].split("+")[0] || "bin";
+    const buf = Buffer.from(await res.arrayBuffer());
+    const filename = `feedback-image-${index}.${ext}`;
+    const destPath = path.join(destDir, filename);
+    await fs.writeFile(destPath, buf);
+    console.log(`   📥 Downloaded ${url} → ${destPath}`);
+    return destPath;
+  } catch (err) {
+    console.warn(`   ⚠️  Download error for ${url}: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Create a feedback/fix prompt for Claude.
+ * `localImagePaths` is an array of absolute local file paths for images
+ * that were attached to the GitHub comment.
+ */
+function createFeedbackPrompt(
+  issueNumber,
+  parsedData,
+  feedback,
+  pluginName,
+  localImagePaths = [],
+) {
+  const imagesSection =
+    localImagePaths.length > 0
+      ? `\nThe user attached ${localImagePaths.length} image(s). Read them BEFORE fixing (use the Read tool; Claude Code supports image files):
+${localImagePaths.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+`
+      : "";
+
   return `Fix bug in ${pluginName}. Be concise, write code not explanations.
 
 Bug report:
 ${feedback.body}
-
+${imagesSection}
 Fix the code, then test:
 \`\`\`bash
 npm run build && npm install -g . && timeout 30 matterbridge -add ${pluginName} 2>&1 || true && timeout 30 matterbridge -bridge 2>&1 || true
@@ -234,12 +299,144 @@ Create the plugin in the CURRENT working directory. The plugin folder name MUST 
 }
 
 /**
+ * Ensure the repo working tree is in a clean state before starting work.
+ * - Resets any tracked-file changes
+ * - Removes untracked files (including gitignored leftovers like plugins/issue-*)
+ * - Switches to main and pulls latest
+ * - Kills any stray matterbridge processes
+ *
+ * Files preserved regardless: `.env`, `node_modules/` (factory deps),
+ * `/home/matterbridge/logs/` (outside the repo).
+ *
+ * Throws on any unrecoverable git error.
+ */
+async function ensureCleanWorkspace() {
+  const repoRoot = path.resolve(__dirname, "..");
+  console.log("🧼 Ensuring clean workspace...");
+
+  killStrayMatterbridge();
+
+  // Preserve .env by staging it out (it's gitignored so clean -fdx would nuke it)
+  const envPath = path.join(repoRoot, ".env");
+  const envBackup = `/tmp/.env.factory-backup-${Date.now()}`;
+  let envSaved = false;
+  try {
+    await fs.access(envPath);
+    execSync(`cp "${envPath}" "${envBackup}"`, { stdio: "pipe" });
+    envSaved = true;
+  } catch {
+    // .env doesn't exist — nothing to preserve
+  }
+
+  try {
+    // Discard tracked changes
+    execSync("git reset --hard HEAD", { cwd: repoRoot, stdio: "pipe" });
+
+    // Remove all untracked files INCLUDING gitignored ones
+    // (this wipes plugins/issue-*, artifacts/issue-*, *.tgz, etc.)
+    // We exclude node_modules so we don't have to reinstall factory deps every run.
+    execSync("git clean -fdx -e node_modules", {
+      cwd: repoRoot,
+      stdio: "pipe",
+    });
+
+    // Make sure we're on main and up-to-date
+    execSync("git fetch origin main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git reset --hard origin/main", { cwd: repoRoot, stdio: "pipe" });
+
+    console.log("✅ Workspace is clean and on main @ origin/main");
+  } finally {
+    // Restore .env
+    if (envSaved) {
+      execSync(`cp "${envBackup}" "${envPath}"`, { stdio: "pipe" });
+      execSync(`rm -f "${envBackup}"`, { stdio: "pipe" });
+    }
+  }
+}
+
+/**
+ * Checkout an existing plugin branch so its files are available in the working tree.
+ * Used by --fix flows to make sure the plugin source is present before running Claude.
+ */
+async function checkoutPluginBranch(branchName) {
+  const repoRoot = path.resolve(__dirname, "..");
+  console.log(`🔀 Checking out plugin branch: ${branchName}`);
+  execSync(`git fetch origin ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
+  execSync(`git checkout ${branchName}`, { cwd: repoRoot, stdio: "pipe" });
+  execSync(`git reset --hard origin/${branchName}`, {
+    cwd: repoRoot,
+    stdio: "pipe",
+  });
+}
+
+/**
+ * Best-effort lookup of the `claude` CLI binary. Cron has a minimal PATH that
+ * often excludes nvm/npm-global install locations. Returns an absolute path
+ * or null if not found.
+ *
+ * Override with the CLAUDE_CLI_PATH env var for full control.
+ */
+function resolveClaudeBinary() {
+  // 1. Try `which claude` using a shell that sources login files
+  try {
+    const out = execSync('bash -lc "command -v claude"', {
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+      .toString()
+      .trim();
+    if (out && fsSync.existsSync(out)) return out;
+  } catch {
+    // ignore
+  }
+
+  // 2. Try common install locations
+  const home = process.env.HOME || "";
+  const candidates = [
+    `${home}/.nvm/versions/node/*/bin/claude`,
+    `${home}/.npm-global/bin/claude`,
+    `${home}/.local/bin/claude`,
+    "/usr/local/bin/claude",
+    "/usr/bin/claude",
+    "/opt/homebrew/bin/claude",
+  ];
+  for (const pattern of candidates) {
+    if (pattern.includes("*")) {
+      try {
+        const out = execSync(`ls ${pattern} 2>/dev/null | head -n 1`)
+          .toString()
+          .trim();
+        if (out && fsSync.existsSync(out)) return out;
+      } catch {
+        // ignore
+      }
+    } else if (fsSync.existsSync(pattern)) {
+      return pattern;
+    }
+  }
+  return null;
+}
+
+/**
  * Kill any stray matterbridge processes left over from previous runs.
  * Safe to call at any time — never throws.
+ *
+ * IMPORTANT: we must NOT use `pkill -f "matterbridge -bridge"` here because
+ * that pattern matches any process whose FULL command line contains the
+ * substring — including Claude Code, whose prompt argument literally contains
+ * `matterbridge -bridge` (for the test instructions). Using `-f` killed Claude
+ * with SIGKILL whenever two runs overlapped.
+ *
+ * Instead, match the process name exactly (`matterbridge` binary, not a
+ * substring of argv). That's safer: we never touch `node`, `claude`, etc.
  */
 function killStrayMatterbridge() {
   try {
-    execSync('pkill -9 -f "matterbridge -bridge"', { stdio: "pipe" });
+    // The real process cmdline is `node /usr/bin/matterbridge -bridge` (or
+    // similar absolute path). Claude's prompt mentions "matterbridge -bridge"
+    // without a slash. Requiring `/matterbridge -bridge` (with leading slash)
+    // uniquely matches the real binary and never the prompt text.
+    execSync('pkill -9 -f "/matterbridge -bridge"', { stdio: "pipe" });
     console.log("🧹 Killed stray matterbridge processes");
   } catch {
     // pkill exits 1 when no process matched — that's fine
@@ -288,7 +485,13 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         }
         claudeArgs.push(prompt);
 
-        const claude = spawn("claude", claudeArgs, {
+        // Resolve the `claude` binary. Cron has a minimal PATH, so we support
+        // explicit `CLAUDE_CLI_PATH` and fall back to a best-effort lookup.
+        const claudeBin =
+          process.env.CLAUDE_CLI_PATH || resolveClaudeBinary() || "claude";
+        console.log(`   Claude binary: ${claudeBin}`);
+
+        const claude = spawn(claudeBin, claudeArgs, {
           cwd: workDir,
           stdio: ["ignore", "pipe", "pipe"],
           env: {
@@ -1190,18 +1393,33 @@ async function processFeedback(issueNumber) {
 
     const parsedData = parseIssueBody(issue.body || "");
     const pluginName = `matterbridge-ai-factory-${generatePluginName(parsedData.deviceName)}`;
+    const branchName = `plugin/issue-${issueNumber}-${pluginName.replace("matterbridge-", "")}`;
     const pluginDir = path.join(
       PLUGINS_DIR,
       `issue-${issueNumber}`,
       pluginName,
     );
 
-    // Check if plugin exists
+    // Ensure the plugin source is present in the working tree by checking out
+    // the plugin branch. Safe because we expect the caller (cron wrapper or
+    // user) to have run `ensureCleanWorkspace` beforehand.
+    try {
+      await checkoutPluginBranch(branchName);
+    } catch (err) {
+      console.error(
+        `❌ Could not checkout branch ${branchName}: ${err.message}`,
+      );
+      console.log("Run without --fix to generate the plugin first.");
+      process.exit(1);
+    }
+
+    // Verify plugin dir now exists
     try {
       await fs.access(pluginDir);
     } catch {
-      console.error(`❌ Plugin directory not found: ${pluginDir}`);
-      console.log("Run without --fix to generate the plugin first.");
+      console.error(
+        `❌ Plugin directory not found after branch checkout: ${pluginDir}`,
+      );
       process.exit(1);
     }
 
@@ -1234,16 +1452,44 @@ I'll post an updated plugin when ready.
 
     await updateLabels(issueNumber, ["in-progress"], ["ready-for-testing"]);
 
+    // Download any images attached to the feedback so Claude can read them.
+    // Stored in /tmp so they never risk being committed to the plugin branch.
+    const imageUrls = extractImageUrls(feedback.body);
+    const localImagePaths = [];
+    let imagesDir = null;
+    if (imageUrls.length > 0) {
+      console.log(
+        `🖼️  Found ${imageUrls.length} image(s) in feedback, downloading...`,
+      );
+      imagesDir = path.join(
+        "/tmp",
+        `matterbridge-feedback-images-${issueNumber}-${Date.now()}`,
+      );
+      await fs.mkdir(imagesDir, { recursive: true });
+      for (let i = 0; i < imageUrls.length; i++) {
+        const local = await downloadImage(imageUrls[i], imagesDir, i + 1);
+        if (local) localImagePaths.push(local);
+      }
+    }
+
     // Create fix prompt
     const prompt = createFeedbackPrompt(
       issueNumber,
       parsedData,
       feedback,
       pluginName,
+      localImagePaths,
     );
 
     // Run Claude to fix the plugin
-    await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+    try {
+      await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+    } finally {
+      // Clean up feedback images from /tmp (Claude has already read them)
+      if (imagesDir) {
+        execSync(`rm -rf "${imagesDir}"`, { stdio: "pipe" });
+      }
+    }
 
     // Rebuild the plugin
     console.log("📦 Rebuilding plugin...");
@@ -1252,11 +1498,13 @@ I'll post an updated plugin when ready.
 
     // Publish fix to existing branch
     console.log("📤 Publishing fix to branch...");
-    const { artifactUrl, branchUrl, branchName } = await publishFixToBranch(
-      issueNumber,
-      pluginName,
-      artifactPath,
-    );
+    const {
+      artifactUrl,
+      branchUrl,
+      branchName: publishedBranchName,
+    } = await publishFixToBranch(issueNumber, pluginName, artifactPath);
+    // keep a reference without shadowing the outer branchName
+    void publishedBranchName;
 
     // Post success comment
     await postComment(
@@ -1364,4 +1612,6 @@ module.exports = {
   resumeWork,
   parseIssueBody,
   validateRequest,
+  ensureCleanWorkspace,
+  checkoutPluginBranch,
 };
