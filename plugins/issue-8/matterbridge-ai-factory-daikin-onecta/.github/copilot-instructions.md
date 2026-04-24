@@ -5,7 +5,7 @@
 - Import and export ordering are enforced by ESLint. Preserve the existing grouped and sorted order unless a change requires updating it.
 - Formatting is enforced by ESLint through the Prettier rule. Follow the existing formatting and do not fight the formatter.
 - Keep changes minimal and scoped to the request. Avoid unrelated refactors or broad cleanup.
-- Do not modify production code only to make a test pass. If a failing test points to a likely source issue, explain the issue and change behavior only when required by the task.
+
 - Preserve cross-platform behavior. Changes must work on Windows, macOS, and Linux, especially for paths, shell commands, environment variables, and networking behavior.
 - Maintain compatibility with the supported Node.js versions in this repository: 20, 22, and 24.
 - This repository is a TypeScript ESM monorepo. Follow existing project patterns for imports, exports, build configuration, and test setup.
