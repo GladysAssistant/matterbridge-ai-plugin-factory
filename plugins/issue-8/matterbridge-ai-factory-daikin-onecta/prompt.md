@@ -1,7 +1,7 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-Quand je fais On pour allumer la climatisation cela fonctionne bien mais le commutateur repasse sur off et la clim reste allumé.
+Quand je fais On pour allumer la climatisation cela fonctionne bien mais le commutateur repasse sur off et la clim reste allumée.
 Par contre quand je fais off, la climatisation ne s'éteind pas.
 Quand j'eteinds la climatisation depuis l'application Daikin, le statut se mets bien a jour sur l'application, mais quand je tente de rallumer l'appareil sur matterbridge la commande n'est pas envoyé.
 

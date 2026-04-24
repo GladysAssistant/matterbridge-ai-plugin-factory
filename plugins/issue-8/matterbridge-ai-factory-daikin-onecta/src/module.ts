@@ -104,19 +104,57 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       .createDefaultThermostatClusterServer(device.indoorTemperature, device.heatingSetpoint, device.coolingSetpoint, 1, 10, 32, 16, 32)
       .addRequiredClusterServers();
 
-    endpoint.addCommandHandler('on', async () => {
+    endpoint.addCommandHandler('on', () => {
       this.log.info(`[${device.name}] ON`);
-      await this.client?.setPower(device.id, true);
-      await endpoint.updateAttribute('OnOff', 'onOff', true, this.log);
+      // Do not await: the Daikin HTTP PATCH is slow and would keep the Matter
+      // invoke transaction open, blocking every subsequent on/off/state write
+      // (observed as "Tx setStateOf waiting on <invoke>" deadlock).
+      // Do not call endpoint.updateAttribute('OnOff', 'onOff', ...) here:
+      // MatterbridgeOnOffServer.on() already sets the attribute via super.on()
+      // after this handler returns. Calling updateAttribute from inside the
+      // handler opens a nested transaction that waits on this invoke and
+      // deadlocks the endpoint.
+      this.applyPowerChange(device, true).catch((error: unknown) => {
+        this.log.error(`[${device.name}] ON failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
     });
-    endpoint.addCommandHandler('off', async () => {
+    endpoint.addCommandHandler('off', () => {
       this.log.info(`[${device.name}] OFF`);
-      await this.client?.setPower(device.id, false);
-      await endpoint.updateAttribute('OnOff', 'onOff', false, this.log);
+      this.applyPowerChange(device, false).catch((error: unknown) => {
+        this.log.error(`[${device.name}] OFF failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
     });
 
     await this.registerDevice(endpoint);
     this.endpoints.set(device.id, endpoint);
+  }
+
+  /**
+   * Apply a power on/off change to the Daikin cloud and keep the thermostat
+   * systemMode in sync so the dead-front OnOff cluster does not force the
+   * attribute back to off.
+   *
+   * @param {DaikinDevice} device - Target device snapshot.
+   * @param {boolean} power - Desired power state.
+   * @returns {Promise<void>} Resolves when the cloud and attributes are updated.
+   */
+  private async applyPowerChange(device: DaikinDevice, power: boolean): Promise<void> {
+    const endpoint = this.endpoints.get(device.id);
+    if (power) {
+      // Keep the previously known operating mode; fall back to 'auto' when
+      // the device was fully off so dead-front does not flip OnOff back.
+      const mode = device.mode && device.mode !== 'off' ? device.mode : 'auto';
+      await this.client?.setMode(device.id, mode);
+      if (endpoint) {
+        await endpoint.updateAttribute('Thermostat', 'systemMode', this.daikinToSystemMode(mode), this.log);
+      }
+    } else {
+      await this.client?.setPower(device.id, false);
+      if (endpoint) {
+        await endpoint.updateAttribute('Thermostat', 'systemMode', Thermostat.SystemMode.Off, this.log);
+        await endpoint.updateAttribute('OnOff', 'onOff', false, this.log);
+      }
+    }
   }
 
   private async wireSubscriptions(device: DaikinDevice): Promise<void> {
