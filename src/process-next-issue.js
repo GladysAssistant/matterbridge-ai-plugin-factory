@@ -86,7 +86,8 @@ async function processNextIssue() {
 
   const issue = candidates[0];
   const jobName = `generate #${issue.number}`;
-  const summary = `*${issue.title}*\nhttps://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+  const issueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+  const summary = `{b}${issue.title}{/b}\n{link:${issueUrl}}${issueUrl}{/link}`;
 
   console.log(
     `➡️  Processing issue #${issue.number}: ${issue.title} (created ${issue.created_at})`,

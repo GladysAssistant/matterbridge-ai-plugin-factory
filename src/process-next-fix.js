@@ -108,7 +108,8 @@ async function processNextFix() {
     if (isBotComment(lastComment)) continue;
 
     const jobName = `fix #${issue.number}`;
-    const summary = `*${issue.title}*\nFeedback by @${lastComment.user.login}\nhttps://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+    const issueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
+    const summary = `{b}${issue.title}{/b}\nFeedback by {b}@${lastComment.user.login}{/b}\n{link:${issueUrl}}${issueUrl}{/link}`;
 
     console.log(
       `➡️  Fixing issue #${issue.number}: ${issue.title} (last feedback by @${lastComment.user.login} at ${lastComment.created_at})`,

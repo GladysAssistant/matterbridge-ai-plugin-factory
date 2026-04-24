@@ -22,6 +22,17 @@ function escapeMarkdownV2(text) {
 }
 
 /**
+ * Escape HTML special characters for Telegram HTML parse mode.
+ * Telegram only requires escaping `<`, `>` and `&` in text nodes.
+ */
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
  * Send a plain-text Telegram message. Never throws.
  * Returns true on success, false if not configured or on network error.
  */
@@ -65,27 +76,76 @@ async function sendTelegram(message, { parseMode = null } = {}) {
 
 /**
  * Convenience helpers with consistent emoji prefixes.
+ *
+ * `details` may contain one or more of the following pseudo-tags that will
+ * be converted to proper Telegram HTML formatting:
+ *   - {b}...{/b}    → bold
+ *   - {i}...{/i}    → italic
+ *   - {code}...{/code} → inline code
+ *   - {link:URL}TEXT{/link} → hyperlink
+ * All other text is HTML-escaped automatically.
  */
+function formatDetails(raw) {
+  if (!raw) return "";
+  // Split on our pseudo-tags while preserving them
+  const tokens = raw.split(
+    /(\{b\}|\{\/b\}|\{i\}|\{\/i\}|\{code\}|\{\/code\}|\{link:[^}]+\}|\{\/link\})/,
+  );
+  let out = "";
+  const stack = [];
+  for (const tok of tokens) {
+    if (tok === "{b}") {
+      out += "<b>";
+      stack.push("b");
+    } else if (tok === "{/b}") {
+      out += "</b>";
+      stack.pop();
+    } else if (tok === "{i}") {
+      out += "<i>";
+      stack.push("i");
+    } else if (tok === "{/i}") {
+      out += "</i>";
+      stack.pop();
+    } else if (tok === "{code}") {
+      out += "<code>";
+      stack.push("code");
+    } else if (tok === "{/code}") {
+      out += "</code>";
+      stack.pop();
+    } else if (tok.startsWith("{link:")) {
+      const url = tok.slice(6, -1);
+      out += `<a href="${escapeHtml(url)}">`;
+      stack.push("a");
+    } else if (tok === "{/link}") {
+      out += "</a>";
+      stack.pop();
+    } else {
+      out += escapeHtml(tok);
+    }
+  }
+  return out;
+}
+
 async function notifyStart(jobName, details = "") {
-  const msg = `🤖 *Factory* — ${jobName} started${details ? `\n${details}` : ""}`;
-  return sendTelegram(msg);
+  const msg = `🤖 <b>Factory</b> — ${escapeHtml(jobName)} started${details ? `\n${formatDetails(details)}` : ""}`;
+  return sendTelegram(msg, { parseMode: "HTML" });
 }
 
 async function notifySuccess(jobName, details = "") {
-  const msg = `✅ *Factory* — ${jobName} succeeded${details ? `\n${details}` : ""}`;
-  return sendTelegram(msg);
+  const msg = `✅ <b>Factory</b> — ${escapeHtml(jobName)} succeeded${details ? `\n${formatDetails(details)}` : ""}`;
+  return sendTelegram(msg, { parseMode: "HTML" });
 }
 
 async function notifyFailure(jobName, error) {
   const errText =
     error instanceof Error ? `${error.message}` : String(error || "unknown");
-  const msg = `❌ *Factory* — ${jobName} failed\n${errText}`;
-  return sendTelegram(msg);
+  const msg = `❌ <b>Factory</b> — ${escapeHtml(jobName)} failed\n<code>${escapeHtml(errText)}</code>`;
+  return sendTelegram(msg, { parseMode: "HTML" });
 }
 
 async function notifyInfo(jobName, details = "") {
-  const msg = `ℹ️  *Factory* — ${jobName}${details ? `\n${details}` : ""}`;
-  return sendTelegram(msg);
+  const msg = `ℹ️ <b>Factory</b> — ${escapeHtml(jobName)}${details ? `\n${formatDetails(details)}` : ""}`;
+  return sendTelegram(msg, { parseMode: "HTML" });
 }
 
 module.exports = {
