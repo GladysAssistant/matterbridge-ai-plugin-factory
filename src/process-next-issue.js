@@ -50,7 +50,6 @@ const PROCESSED_LABELS = new Set([
   "in-progress",
   "ready-for-testing",
   "completed",
-  "error",
   "needs-info",
 ]);
 

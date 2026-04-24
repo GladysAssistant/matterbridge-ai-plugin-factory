@@ -9,6 +9,7 @@ require("dotenv").config();
 const { Octokit } = require("@octokit/rest");
 const { spawn, execSync } = require("child_process");
 const fs = require("fs").promises;
+const fsSync = require("fs");
 const path = require("path");
 
 const octokit = new Octokit({
@@ -370,6 +371,53 @@ async function checkoutPluginBranch(branchName) {
 }
 
 /**
+ * Best-effort lookup of the `claude` CLI binary. Cron has a minimal PATH that
+ * often excludes nvm/npm-global install locations. Returns an absolute path
+ * or null if not found.
+ *
+ * Override with the CLAUDE_CLI_PATH env var for full control.
+ */
+function resolveClaudeBinary() {
+  // 1. Try `which claude` using a shell that sources login files
+  try {
+    const out = execSync('bash -lc "command -v claude"', {
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+      .toString()
+      .trim();
+    if (out && fsSync.existsSync(out)) return out;
+  } catch {
+    // ignore
+  }
+
+  // 2. Try common install locations
+  const home = process.env.HOME || "";
+  const candidates = [
+    `${home}/.nvm/versions/node/*/bin/claude`,
+    `${home}/.npm-global/bin/claude`,
+    `${home}/.local/bin/claude`,
+    "/usr/local/bin/claude",
+    "/usr/bin/claude",
+    "/opt/homebrew/bin/claude",
+  ];
+  for (const pattern of candidates) {
+    if (pattern.includes("*")) {
+      try {
+        const out = execSync(`ls ${pattern} 2>/dev/null | head -n 1`)
+          .toString()
+          .trim();
+        if (out && fsSync.existsSync(out)) return out;
+      } catch {
+        // ignore
+      }
+    } else if (fsSync.existsSync(pattern)) {
+      return pattern;
+    }
+  }
+  return null;
+}
+
+/**
  * Kill any stray matterbridge processes left over from previous runs.
  * Safe to call at any time — never throws.
  */
@@ -424,7 +472,13 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         }
         claudeArgs.push(prompt);
 
-        const claude = spawn("claude", claudeArgs, {
+        // Resolve the `claude` binary. Cron has a minimal PATH, so we support
+        // explicit `CLAUDE_CLI_PATH` and fall back to a best-effort lookup.
+        const claudeBin =
+          process.env.CLAUDE_CLI_PATH || resolveClaudeBinary() || "claude";
+        console.log(`   Claude binary: ${claudeBin}`);
+
+        const claude = spawn(claudeBin, claudeArgs, {
           cwd: workDir,
           stdio: ["ignore", "pipe", "pipe"],
           env: {
