@@ -1,0 +1,61 @@
+{
+  "title": "Matterbridge Yeelight Plugin",
+  "description": "matterbridge-ai-factory-yeelight configuration",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "lights": {
+      "title": "Yeelight Devices",
+      "description": "List of Yeelight devices to expose. Each entry needs a host IP, optional port (default 55443), name and model (color | ct | mono).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "title": "Name", "type": "string" },
+          "host": { "title": "Host/IP", "type": "string" },
+          "port": { "title": "Port", "type": "number", "default": 55443 },
+          "model": {
+            "title": "Model",
+            "type": "string",
+            "enum": ["color", "ct", "mono"],
+            "default": "color"
+          }
+        },
+        "required": ["name", "host"]
+      }
+    },
+    "whiteList": {
+      "title": "White List",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "blackList": {
+      "title": "Black List",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

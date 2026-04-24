@@ -1,0 +1,47 @@
+{
+  "name": "matterbridge-ai-factory-yeelight",
+  "version": "1.0.0",
+  "description": "Matterbridge plugin for Yeelight LAN-controlled smart lights",
+  "author": "matterbridge-ai-factory",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/module.js",
+  "types": "dist/module.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js",
+      "types": "./dist/module.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "keywords": [
+    "matterbridge",
+    "plugin",
+    "yeelight",
+    "matter",
+    "smarthome",
+    "light"
+  ],
+  "files": [
+    "dist",
+    "*.config.json",
+    "*.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "clean": "npx shx rm -rf *.tsbuildinfo dist",
+    "cleanBuild": "npm run clean && npm run build",
+    "start": "matterbridge"
+  },
+  "dependencies": {
+    "node-ansi-logger": "3.2.1",
+    "node-persist-manager": "2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "shx": "0.4.0",
+    "typescript": "5.7.2"
+  }
+}

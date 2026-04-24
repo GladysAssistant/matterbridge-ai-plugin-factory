@@ -1,0 +1,9 @@
+{
+  "name": "matterbridge-ai-factory-yeelight",
+  "type": "DynamicPlatform",
+  "lights": [],
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
