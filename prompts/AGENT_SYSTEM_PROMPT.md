@@ -62,8 +62,11 @@ npm link matterbridge
 npm run build
 matterbridge -add .
 timeout --signal=SIGINT --kill-after=10s 60s matterbridge -bridge || true
-# Extra safety: ensure nothing survives
-pkill -9 -f "matterbridge -bridge" 2>/dev/null || true
+# Extra safety: ensure nothing survives.
+# IMPORTANT: match "/matterbridge -bridge" (with leading slash) so we only
+# target the real binary path (e.g. /usr/bin/matterbridge -bridge) and never
+# your own process (whose cmdline contains the literal text "matterbridge -bridge").
+pkill -9 -f "/matterbridge -bridge" 2>/dev/null || true
 ```
 
 **NEVER** run `matterbridge -bridge &` in the background — always use `timeout` in the foreground so the process is guaranteed to be killed.

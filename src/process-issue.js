@@ -420,10 +420,23 @@ function resolveClaudeBinary() {
 /**
  * Kill any stray matterbridge processes left over from previous runs.
  * Safe to call at any time — never throws.
+ *
+ * IMPORTANT: we must NOT use `pkill -f "matterbridge -bridge"` here because
+ * that pattern matches any process whose FULL command line contains the
+ * substring — including Claude Code, whose prompt argument literally contains
+ * `matterbridge -bridge` (for the test instructions). Using `-f` killed Claude
+ * with SIGKILL whenever two runs overlapped.
+ *
+ * Instead, match the process name exactly (`matterbridge` binary, not a
+ * substring of argv). That's safer: we never touch `node`, `claude`, etc.
  */
 function killStrayMatterbridge() {
   try {
-    execSync('pkill -9 -f "matterbridge -bridge"', { stdio: "pipe" });
+    // The real process cmdline is `node /usr/bin/matterbridge -bridge` (or
+    // similar absolute path). Claude's prompt mentions "matterbridge -bridge"
+    // without a slash. Requiring `/matterbridge -bridge` (with leading slash)
+    // uniquely matches the real binary and never the prompt text.
+    execSync('pkill -9 -f "/matterbridge -bridge"', { stdio: "pipe" });
     console.log("🧹 Killed stray matterbridge processes");
   } catch {
     // pkill exits 1 when no process matched — that's fine
