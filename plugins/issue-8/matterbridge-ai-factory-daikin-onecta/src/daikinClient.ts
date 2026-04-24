@@ -379,10 +379,51 @@ export class DaikinClient {
       errorDetails?: string;
       sessionInfo?: { login_token?: string };
     };
+    // 206001: Account Pending Registration, 206002: Account Pending Verification.
+    // Daikin requires the account to be verified via a link sent by email; trigger the resend flow
+    // like the Homebridge plugin does, then surface a clear, actionable error to the user.
+    if (result.errorCode === 206001 || result.errorCode === 206002) {
+      await this.resendVerificationEmail(this.options.email!);
+      throw new Error(
+        `Daikin account "${this.options.email}" is not verified. A verification email has been sent. ` +
+          `Please click "Verify my account" in the email from Daikin, then restart Matterbridge.`,
+      );
+    }
     if (result.errorCode !== 0 || !result.sessionInfo?.login_token) {
       throw new Error(`Gigya login failed (${result.errorCode}): ${result.errorMessage ?? result.errorDetails ?? 'unknown error'}`);
     }
     return result.sessionInfo.login_token;
+  }
+
+  private async resendVerificationEmail(loginID: string): Promise<void> {
+    try {
+      const params = new URLSearchParams({
+        ...this.gigyaSdkParams(),
+        loginID,
+        lang: 'en',
+      });
+      const response = await this.httpsRequest(
+        `${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/accounts.resendVerificationCode`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Origin: 'https://id.daikin.eu',
+            Referer: 'https://id.daikin.eu/',
+            Cookie: this.cookies,
+          },
+        },
+        params.toString(),
+      );
+      const result = JSON.parse(response.body) as { errorCode: number; errorMessage?: string };
+      if (result.errorCode === 0) {
+        this.log.warn(`Daikin sent a verification email to ${loginID}. Click "Verify my account", then restart Matterbridge.`);
+      } else {
+        this.log.warn(`Failed to resend Daikin verification email (${result.errorCode}): ${result.errorMessage ?? 'unknown error'}`);
+      }
+    } catch (error) {
+      this.log.warn(`Failed to resend Daikin verification email: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async authorizeWithToken(context: string, loginToken: string): Promise<string> {

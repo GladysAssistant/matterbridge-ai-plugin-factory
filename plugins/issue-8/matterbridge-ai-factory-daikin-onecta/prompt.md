@@ -75,11 +75,6 @@ npm error A complete log of this run can be found in: /root/.npm/_logs/2026-04-2
 ```
 
 
-The user attached 3 image(s). Read them BEFORE fixing (use the Read tool; Claude Code supports image files):
-1. /tmp/matterbridge-feedback-images-8-1777018190608/feedback-image-1.png
-2. /tmp/matterbridge-feedback-images-8-1777018190608/feedback-image-2.png
-3. /tmp/matterbridge-feedback-images-8-1777018190608/feedback-image-3.png
-
 Fix the code, then test:
 ```bash
 npm run build && npm install -g . && timeout 30 matterbridge -add matterbridge-ai-factory-daikin-onecta 2>&1 || true && timeout 30 matterbridge -bridge 2>&1 || true
