@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-po-le-palazzetti",
+  "type": "DynamicPlatform",
+  "host": "192.168.1.100",
+  "deviceLabel": "Poele Palazzetti",
+  "pollInterval": 30,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

@@ -1,0 +1,69 @@
+{
+  "title": "Matterbridge Palazzetti Stove",
+  "description": "matterbridge-ai-factory-po-le-palazzetti - Palazzetti pellet stove integration",
+  "type": "object",
+  "required": ["host"],
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Stove Host",
+      "description": "IP address or hostname of the Palazzetti Connection Box / WPalaControl module",
+      "type": "string",
+      "default": "192.168.1.100"
+    },
+    "deviceLabel": {
+      "title": "Device Label",
+      "description": "Friendly name shown in Matter",
+      "type": "string",
+      "default": "Poele Palazzetti"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to query the stove for status updates",
+      "type": "number",
+      "default": 30,
+      "minimum": 10
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
