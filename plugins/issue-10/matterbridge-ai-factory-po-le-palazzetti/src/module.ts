@@ -7,7 +7,7 @@
  * target temperature (SETP) and ambient temperature (T1).
  */
 
-import { MatterbridgeDynamicPlatform, MatterbridgeEndpoint, PlatformConfig, PlatformMatterbridge, thermostatDevice } from 'matterbridge';
+import { bridgedNode, contactSensor, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, onOffSwitch, PlatformConfig, PlatformMatterbridge, powerSource, thermostatDevice } from 'matterbridge';
 import { Thermostat } from 'matterbridge/matter/clusters';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
 
@@ -56,6 +56,9 @@ const STATUS_LABELS: Record<number, string> = {
 
 export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
   private device?: MatterbridgeEndpoint;
+  private thermostatChild?: MatterbridgeEndpoint;
+  private switchChild?: MatterbridgeEndpoint;
+  private statusChild?: MatterbridgeEndpoint;
   private pollTimer?: NodeJS.Timeout;
   private host: string;
   private deviceLabel: string;
@@ -63,6 +66,7 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
   private mac = '';
   private lastStatus = -1;
   private lastLStatus = -1;
+  private suppressOnOffSubscribe = false;
 
   constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
     super(matterbridge, log, config);
@@ -88,7 +92,9 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
     this.mac = (initial?.DATA?.MAC as string) || 'palazzetti';
     const serial = `palazzetti-${this.mac.replace(/:/g, '').toLowerCase()}`;
 
-    this.device = new MatterbridgeEndpoint(thermostatDevice, { id: serial })
+    // Composed bridged device: parent exposes basic info + power source.
+    // Children expose: Thermostat (target temp + ambient), OnOff Switch (CMD ON/OFF), ContactSensor (running status).
+    this.device = new MatterbridgeEndpoint([bridgedNode, powerSource], { id: serial })
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         this.deviceLabel,
         serial,
@@ -98,12 +104,26 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
         1,
         '1.0.0',
       )
+      .createDefaultPowerSourceWiredClusterServer();
+
+    this.thermostatChild = this.device
+      .addChildDeviceType('Thermostat', thermostatDevice, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 0x00, label: 'Thermostat' }] })
       .createDefaultHeatingThermostatClusterServer(
         20, // localTemperature °C
         20, // occupiedHeatingSetpoint °C
-        7,  // minHeatSetpointLimit °C
+        7, // minHeatSetpointLimit °C
         30, // maxHeatSetpointLimit °C
       )
+      .addRequiredClusterServers();
+
+    this.switchChild = this.device
+      .addChildDeviceType('OnOff', onOffSwitch, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 0x01, label: 'Power' }] })
+      .createDefaultOnOffClusterServer(false)
+      .addRequiredClusterServers();
+
+    this.statusChild = this.device
+      .addChildDeviceType('Status', contactSensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 0x02, label: 'Status' }] })
+      .createDefaultBooleanStateClusterServer(false)
       .addRequiredClusterServers();
 
     this.setSelectDevice(serial, this.deviceLabel);
@@ -113,14 +133,33 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
-    // Command handlers
-    this.device.addCommandHandler('setpointRaiseLower', async ({ request }) => {
-      const current = (this.device!.getAttribute('Thermostat', 'occupiedHeatingSetpoint') as number) ?? 2000;
-      const newValue = current + (request.amount * 10);
+    // Thermostat command handler: setpointRaiseLower
+    this.thermostatChild.addCommandHandler('setpointRaiseLower', async ({ request }) => {
+      const current = (this.thermostatChild!.getAttribute('Thermostat', 'occupiedHeatingSetpoint') as number) ?? 2000;
+      const newValue = current + request.amount * 10;
       const setp = Math.round(newValue / 100);
       this.log.info(`setpointRaiseLower: amount=${request.amount} -> SET SETP ${setp}`);
       await this.sendCommand(`SET SETP ${setp}`);
-      await this.device!.setAttribute('Thermostat', 'occupiedHeatingSetpoint', setp * 100, this.log);
+      await this.thermostatChild!.setAttribute('Thermostat', 'occupiedHeatingSetpoint', setp * 100, this.log);
+    });
+
+    // OnOff command handlers: CMD ON / CMD OFF
+    this.switchChild.addCommandHandler('on', async () => {
+      this.log.info('OnOff.on -> CMD ON');
+      await this.sendCommand('CMD ON');
+      await this.switchChild!.setAttribute('OnOff', 'onOff', true, this.log);
+    });
+    this.switchChild.addCommandHandler('off', async () => {
+      this.log.info('OnOff.off -> CMD OFF');
+      await this.sendCommand('CMD OFF');
+      await this.switchChild!.setAttribute('OnOff', 'onOff', false, this.log);
+    });
+    this.switchChild.addCommandHandler('toggle', async () => {
+      const cur = (this.switchChild!.getAttribute('OnOff', 'onOff') as boolean) ?? false;
+      const cmd = cur ? 'CMD OFF' : 'CMD ON';
+      this.log.info(`OnOff.toggle -> ${cmd}`);
+      await this.sendCommand(cmd);
+      await this.switchChild!.setAttribute('OnOff', 'onOff', !cur, this.log);
     });
 
     await this.registerDevice(this.device);
@@ -129,10 +168,10 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
   override async onConfigure() {
     await super.onConfigure();
     this.log.info('onConfigure called');
-    if (!this.device) return;
+    if (!this.device || !this.thermostatChild || !this.switchChild) return;
 
     // Subscribe to occupiedHeatingSetpoint changes
-    await this.device.subscribeAttribute(
+    await this.thermostatChild.subscribeAttribute(
       'Thermostat',
       'occupiedHeatingSetpoint',
       (newValue: number, oldValue: number) => {
@@ -144,8 +183,8 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
-    // Subscribe to systemMode changes -> CMD ON / CMD OFF
-    await this.device.subscribeAttribute(
+    // Subscribe to thermostat systemMode changes -> CMD ON / CMD OFF (legacy fallback)
+    await this.thermostatChild.subscribeAttribute(
       'Thermostat',
       'systemMode',
       (newValue: Thermostat.SystemMode, oldValue: Thermostat.SystemMode) => {
@@ -157,6 +196,20 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
           this.log.info('systemMode -> CMD ON');
           void this.sendCommand('CMD ON');
         }
+      },
+      this.log,
+    );
+
+    // Subscribe to OnOff switch changes -> CMD ON / CMD OFF
+    await this.switchChild.subscribeAttribute(
+      'OnOff',
+      'onOff',
+      (newValue: boolean, oldValue: boolean) => {
+        if (newValue === oldValue) return;
+        if (this.suppressOnOffSubscribe) return;
+        const cmd = newValue ? 'CMD ON' : 'CMD OFF';
+        this.log.info(`OnOff.onOff change -> ${cmd}`);
+        void this.sendCommand(cmd);
       },
       this.log,
     );
@@ -201,17 +254,27 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private async poll() {
-    if (!this.device) return;
+    if (!this.thermostatChild || !this.switchChild || !this.statusChild) return;
     const data = (await this.sendCommand('GET ALLS'))?.DATA;
     if (!data) return;
 
     if (typeof data.STATUS === 'number' && data.STATUS !== this.lastStatus) {
       this.lastStatus = data.STATUS;
-      this.log.info(`STATUS=${data.STATUS} (${STATUS_LABELS[data.STATUS] ?? 'UNKNOWN'})`);
-      const mode = data.STATUS === 0 || data.STATUS === 1 || data.STATUS === 10 || data.STATUS === 12
-        ? Thermostat.SystemMode.Off
-        : Thermostat.SystemMode.Heat;
-      await this.device.setAttribute('Thermostat', 'systemMode', mode, this.log);
+      const label = STATUS_LABELS[data.STATUS] ?? 'UNKNOWN';
+      this.log.info(`STATUS=${data.STATUS} (${label})`);
+      const isOff = data.STATUS === 0 || data.STATUS === 1 || data.STATUS === 10 || data.STATUS === 12;
+      const isRunning = !isOff;
+      const mode = isOff ? Thermostat.SystemMode.Off : Thermostat.SystemMode.Heat;
+      await this.thermostatChild.setAttribute('Thermostat', 'systemMode', mode, this.log);
+      // Reflect in OnOff switch without re-issuing CMD ON/OFF.
+      this.suppressOnOffSubscribe = true;
+      try {
+        await this.switchChild.setAttribute('OnOff', 'onOff', isRunning, this.log);
+      } finally {
+        this.suppressOnOffSubscribe = false;
+      }
+      // Reflect in contact sensor: stateValue=true means closed/active (running).
+      await this.statusChild.setAttribute('BooleanState', 'stateValue', isRunning, this.log);
     }
     if (typeof data.LSTATUS === 'number' && data.LSTATUS !== this.lastLStatus) {
       this.lastLStatus = data.LSTATUS;
@@ -219,11 +282,11 @@ export class PalazzettiPlatform extends MatterbridgeDynamicPlatform {
     }
     if (typeof data.T1 === 'number') {
       const v = Math.round(data.T1 * 100);
-      await this.device.setAttribute('Thermostat', 'localTemperature', v, this.log);
+      await this.thermostatChild.setAttribute('Thermostat', 'localTemperature', v, this.log);
     }
     if (typeof data.SETP === 'number') {
       const v = Math.round(data.SETP * 100);
-      await this.device.setAttribute('Thermostat', 'occupiedHeatingSetpoint', v, this.log);
+      await this.thermostatChild.setAttribute('Thermostat', 'occupiedHeatingSetpoint', v, this.log);
     }
   }
 }
