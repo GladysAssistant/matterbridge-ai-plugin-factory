@@ -1,15 +1,31 @@
 Fix bug in matterbridge-ai-factory-po-le-palazzetti. Be concise, write code not explanations.
 
 Bug report:
-Please test the plugin and report back:
+Dans Matterbridge j'ai maintenant les "Devices" suivants
 
-Plugin installs correctly - Ok
+- Main = Online
+- Main = AC
+- Thermostat = 20
+- OnOff = Off
+- Statut = Opened
 
-Device discovery works - Ok
+Dans Gladys j'ai les objets suivants
 
-Basic controls function -
-J'ai la temperature de consigne, en revanche je n'ai pas l'état " Status" du poêle
-Je n'ai pas le commutateur pour allumer / Eteindre le poêle
+- Commutateur = Off
+- Commutateur = Pas de valeur
+- Temperature  Pas de valeur
+
+Ni le commutateur, ni le reglage de température depuis Gladys n'a d'effet sur le poêle
+
+
+Dans le log MatterBridge j'ai ce warning
+
+- 21:21:16.192][Matterbridge plugin for Palazzetti pellet stoves (WPalaControl / Connection Box)]Command "GET ALLS" error: fetch failed
+
+
+l'IP de la ConnectBox de mon poele est : http://192.168.0.43
+
+Peut être faut il que je puisse paramétrer cet IP dans le PlugIn ?
 
 Fix the code, then test:
 ```bash
