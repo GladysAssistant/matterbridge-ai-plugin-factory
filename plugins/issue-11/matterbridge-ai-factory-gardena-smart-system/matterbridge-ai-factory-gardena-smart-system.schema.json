@@ -1,0 +1,64 @@
+{
+  "title": "Matterbridge Gardena Smart System",
+  "description": "matterbridge-ai-factory-gardena-smart-system",
+  "type": "object",
+  "required": ["apiKey", "apiSecret"],
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "apiKey": {
+      "title": "Application Key (Client ID)",
+      "description": "Husqvarna Developer Portal Application Key (used as X-Api-Key and OAuth2 client_id).",
+      "type": "string"
+    },
+    "apiSecret": {
+      "title": "Application Secret (Client Secret)",
+      "description": "Husqvarna Developer Portal Application Secret (OAuth2 client_secret).",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "locationId": {
+      "title": "Location ID (optional)",
+      "description": "Specific Gardena location ID to use. If empty the first location returned by the API is used.",
+      "type": "string"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

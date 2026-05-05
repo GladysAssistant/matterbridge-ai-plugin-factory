@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-gardena-smart-system",
+  "type": "DynamicPlatform",
+  "apiKey": "",
+  "apiSecret": "",
+  "locationId": "",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
