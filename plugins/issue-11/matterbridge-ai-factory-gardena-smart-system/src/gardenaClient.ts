@@ -143,7 +143,10 @@ export class GardenaClient extends EventEmitter {
       const parentId = r.id.split(':')[0];
       const dev = location.devices.get(parentId);
       if (!dev) continue;
-      dev.services.set(r.id, r);
+      // Key by `${type}:${id}` because Husqvarna can reuse the same id across
+      // service types on the same device (e.g. COMMON and SENSOR both equal to
+      // the device id), which would otherwise collide in this Map.
+      dev.services.set(`${r.type}:${r.id}`, r);
       dev.serviceTypes.add(r.type);
       if (r.type === 'COMMON') {
         const attrs = (r.attributes ?? {}) as Record<string, { value: unknown }>;
@@ -238,15 +241,16 @@ export class GardenaClient extends EventEmitter {
 
   private applyResourceUpdate(resource: GardenaResource): void {
     if (!this.location) return;
+    const key = `${resource.type}:${resource.id}`;
     for (const dev of this.location.devices.values()) {
-      if (dev.services.has(resource.id)) {
-        const existing = dev.services.get(resource.id) as GardenaResource;
+      if (dev.services.has(key)) {
+        const existing = dev.services.get(key) as GardenaResource;
         // Merge attributes
         const merged: GardenaResource = {
           ...existing,
           attributes: { ...(existing.attributes ?? {}), ...(resource.attributes ?? {}) },
         };
-        dev.services.set(resource.id, merged);
+        dev.services.set(key, merged);
         return;
       }
     }
