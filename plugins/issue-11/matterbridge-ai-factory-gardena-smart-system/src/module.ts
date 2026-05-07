@@ -114,12 +114,20 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
   /** Build and register Matter endpoints for one Gardena device. */
   private async registerGardenaDevice(device: GardenaDevice): Promise<void> {
     const baseSerial = device.serial ?? device.id;
+    const types = [...device.serviceTypes].join(',');
+    this.log.info(`Gardena: device "${device.name}" (${device.id}) services=[${types}]`);
+    let exposed = 0;
     for (const svc of device.services.values()) {
       if (svc.type === 'POWER_SOCKET') {
         await this.registerPowerSocket(device, svc, baseSerial);
+        exposed++;
       } else if (svc.type === 'SOIL_SENSOR' || svc.type === 'SENSOR') {
         await this.registerSoilSensor(device, svc, baseSerial);
+        exposed++;
       }
+    }
+    if (exposed === 0) {
+      this.log.warn(`Gardena: device "${device.name}" exposes no supported service types (got: ${types || 'none'})`);
     }
   }
 

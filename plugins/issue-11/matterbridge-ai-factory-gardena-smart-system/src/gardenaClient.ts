@@ -130,17 +130,17 @@ export class GardenaClient extends EventEmitter {
       devices: new Map(),
     };
 
-    // First pass: build DEVICE shells
+    // First pass: build DEVICE shells. Devices have ids without ':' suffix.
     for (const r of locJson.included ?? []) {
       if (r.type === 'DEVICE') {
         location.devices.set(r.id, { id: r.id, name: r.id, services: new Map(), serviceTypes: new Set() });
       }
     }
-    // Second pass: services -> attach to parent device + extract identity from COMMON
+    // Second pass: attach services. Gardena API encodes the parent device id as
+    // the prefix of the service id, separated by ':' (e.g. "<device-uuid>:1").
     for (const r of locJson.included ?? []) {
       if (r.type === 'DEVICE') continue;
-      const parentId = this.findParentDeviceId(r, locJson.included ?? []);
-      if (!parentId) continue;
+      const parentId = r.id.split(':')[0];
       const dev = location.devices.get(parentId);
       if (!dev) continue;
       dev.services.set(r.id, r);
@@ -155,19 +155,14 @@ export class GardenaClient extends EventEmitter {
         dev.modelType = modelType;
       }
     }
+    this.log.debug(
+      `Gardena: parsed location with devices=${location.devices.size}, services=${[...location.devices.values()]
+        .map((d) => `${d.name}[${[...d.serviceTypes].join(',')}]`)
+        .join('; ')}`,
+    );
 
     this.location = location;
     return location;
-  }
-
-  /** Walk DEVICE relationships to find the device that owns this service. */
-  private findParentDeviceId(service: GardenaResource, included: GardenaResource[]): string | undefined {
-    for (const r of included) {
-      if (r.type !== 'DEVICE') continue;
-      const services = r.relationships?.services?.data;
-      if (Array.isArray(services) && services.some((s) => s.id === service.id)) return r.id;
-    }
-    return undefined;
   }
 
   /** Open a websocket for live updates on the current location. */
