@@ -38,12 +38,17 @@ interface PowerSocketBinding {
   serviceId: string;
   endpoint: MatterbridgeEndpoint;
 }
+interface ValveBinding {
+  kind: 'valve';
+  serviceId: string;
+  endpoint: MatterbridgeEndpoint;
+}
 interface SensorBinding {
   kind: 'sensor';
   serviceId: string;
   endpoint: MatterbridgeEndpoint;
 }
-type Binding = PowerSocketBinding | SensorBinding;
+type Binding = PowerSocketBinding | ValveBinding | SensorBinding;
 
 export class GardenaPlatform extends MatterbridgeDynamicPlatform {
   private client?: GardenaClient;
@@ -121,6 +126,9 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
       if (svc.type === 'POWER_SOCKET') {
         await this.registerPowerSocket(device, svc, baseSerial);
         exposed++;
+      } else if (svc.type === 'VALVE') {
+        await this.registerValve(device, svc, baseSerial);
+        exposed++;
       } else if (svc.type === 'SOIL_SENSOR' || svc.type === 'SENSOR') {
         await this.registerSoilSensor(device, svc, baseSerial);
         exposed++;
@@ -170,6 +178,47 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
     this.bindings.set(svc.id, { kind: 'power-socket', serviceId: svc.id, endpoint });
   }
 
+  private async registerValve(device: GardenaDevice, svc: GardenaResource, baseSerial: string): Promise<void> {
+    const svcAttrs = (svc.attributes ?? {}) as Record<string, { value: unknown } | undefined>;
+    const svcName = (svcAttrs.name?.value as string | undefined) ?? device.name;
+    const name = svcName === device.name ? device.name : `${device.name} ${svcName}`;
+    const serial = `${baseSerial}-${svc.id}`.slice(0, 32);
+    this.setSelectDevice(serial, name);
+    if (!this.validateDevice([name, serial])) return;
+
+    const endpoint = new MatterbridgeEndpoint(onOffOutlet, { id: `gardena-valve-${svc.id}` })
+      .createDefaultBridgedDeviceBasicInformationClusterServer(
+        name,
+        serial,
+        this.matterbridge.aggregatorVendorId,
+        'Gardena',
+        device.modelType ?? 'Smart Valve',
+        1,
+        '1.0.0',
+      )
+      .createDefaultPowerSourceWiredClusterServer()
+      .addRequiredClusterServers()
+      .addCommandHandler('on', async () => {
+        this.log.info(`Gardena: ON ${name}`);
+        try {
+          await this.client?.setValve(svc.id, true);
+        } catch (e) {
+          this.log.error(`Gardena ON failed: ${(e as Error).message}`);
+        }
+      })
+      .addCommandHandler('off', async () => {
+        this.log.info(`Gardena: OFF ${name}`);
+        try {
+          await this.client?.setValve(svc.id, false);
+        } catch (e) {
+          this.log.error(`Gardena OFF failed: ${(e as Error).message}`);
+        }
+      });
+
+    await this.registerDevice(endpoint);
+    this.bindings.set(svc.id, { kind: 'valve', serviceId: svc.id, endpoint });
+  }
+
   private async registerSoilSensor(device: GardenaDevice, svc: GardenaResource, baseSerial: string): Promise<void> {
     const name = `${device.name} Soil`;
     const serial = `${baseSerial}-${svc.id}`.slice(0, 32);
@@ -210,9 +259,17 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
         const on = activity !== 'OFF';
         await binding.endpoint.updateAttribute('OnOff', 'onOff', on, this.log);
       }
+    } else if (binding.kind === 'valve') {
+      const activity = attrs.activity?.value as string | undefined;
+      // VALVE activity values: CLOSED, MANUAL_WATERING, SCHEDULED_WATERING
+      if (activity) {
+        const on = activity !== 'CLOSED';
+        await binding.endpoint.updateAttribute('OnOff', 'onOff', on, this.log);
+      }
     } else {
-      const humidity = attrs.soilHumidity?.value as number | undefined;
-      const temperature = attrs.soilTemperature?.value as number | undefined;
+      // SENSOR / SOIL_SENSOR attributes: soilHumidity, soilTemperature, ambientTemperature, lightIntensity
+      const humidity = (attrs.soilHumidity?.value ?? attrs.humidity?.value) as number | undefined;
+      const temperature = (attrs.soilTemperature?.value ?? attrs.ambientTemperature?.value ?? attrs.temperature?.value) as number | undefined;
       if (typeof humidity === 'number') {
         await binding.endpoint.updateAttribute('RelativeHumidityMeasurement', 'measuredValue', Math.round(humidity * 100), this.log);
       }

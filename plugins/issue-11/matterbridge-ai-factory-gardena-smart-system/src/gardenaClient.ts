@@ -278,6 +278,15 @@ export class GardenaClient extends EventEmitter {
     }
   }
 
+  /** Convenience: open a VALVE (manual watering for N seconds) or close it. */
+  async setValve(serviceId: string, on: boolean, seconds = 3600): Promise<void> {
+    if (on) {
+      await this.sendCommand('VALVE_CONTROL', serviceId, 'START_SECONDS_TO_OVERRIDE', { seconds });
+    } else {
+      await this.sendCommand('VALVE_CONTROL', serviceId, 'STOP_UNTIL_NEXT_TASK');
+    }
+  }
+
   shutdown(): void {
     this.stopped = true;
     if (this.wsKeepAlive) clearInterval(this.wsKeepAlive);
