@@ -3,7 +3,7 @@
  *
  * Exposes:
  *  - POWER_SOCKET services (e.g. connected pump) as on/off outlets.
- *  - SOIL_SENSOR services as combined humidity + temperature sensors.
+ *  - SENSOR services as combined humidity + temperature sensors.
  *
  * Live updates are received over the Husqvarna Smart System websocket.
  */
@@ -129,8 +129,8 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
       } else if (svc.type === 'VALVE') {
         await this.registerValve(device, svc, baseSerial);
         exposed++;
-      } else if (svc.type === 'SOIL_SENSOR' || svc.type === 'SENSOR') {
-        await this.registerSoilSensor(device, svc, baseSerial);
+      } else if (svc.type === 'SENSOR') {
+        await this.registerSensor(device, svc, baseSerial);
         exposed++;
       }
     }
@@ -219,19 +219,19 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
     this.bindings.set(svc.id, { kind: 'valve', serviceId: svc.id, endpoint });
   }
 
-  private async registerSoilSensor(device: GardenaDevice, svc: GardenaResource, baseSerial: string): Promise<void> {
-    const name = `${device.name} Soil`;
+  private async registerSensor(device: GardenaDevice, svc: GardenaResource, baseSerial: string): Promise<void> {
+    const name = `${device.name} Sensor`;
     const serial = `${baseSerial}-${svc.id}`.slice(0, 32);
     this.setSelectDevice(serial, name);
     if (!this.validateDevice([name, serial])) return;
 
-    const endpoint = new MatterbridgeEndpoint([temperatureSensor, humiditySensor], { id: `gardena-soil-${svc.id}` })
+    const endpoint = new MatterbridgeEndpoint([temperatureSensor, humiditySensor], { id: `gardena-sensor-${svc.id}` })
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         name,
         serial,
         this.matterbridge.aggregatorVendorId,
         'Gardena',
-        device.modelType ?? 'Soil Sensor',
+        device.modelType ?? 'Sensor',
         1,
         '1.0.0',
       )
@@ -267,7 +267,7 @@ export class GardenaPlatform extends MatterbridgeDynamicPlatform {
         await binding.endpoint.updateAttribute('OnOff', 'onOff', on, this.log);
       }
     } else {
-      // SENSOR / SOIL_SENSOR attributes: soilHumidity, soilTemperature, ambientTemperature, lightIntensity
+      // SENSOR attributes: soilHumidity, soilTemperature, ambientTemperature, lightIntensity
       const humidity = (attrs.soilHumidity?.value ?? attrs.humidity?.value) as number | undefined;
       const temperature = (attrs.soilTemperature?.value ?? attrs.ambientTemperature?.value ?? attrs.temperature?.value) as number | undefined;
       if (typeof humidity === 'number') {
