@@ -1,17 +1,17 @@
 /**
- * Daikin Onecta cloud client with Mobile App Authentication.
+ * Daikin Onecta cloud client using the official Developer Portal API.
  *
- * Implements the Daikin Onecta authentication flow used by the official mobile
- * app (Gigya + OAuth2 PKCE). This avoids the Developer Portal limitations
- * (200 calls/day, manual redirect URI dance) and lets the user log in with
- * their normal Daikin email/password as documented in
- * `@mp-consulting/homebridge-daikin-cloud`.
+ * Uses the official OAuth2 authentication described at
+ * https://developer.cloud.daikineurope.com. Users register an application,
+ * complete the authorization code flow once, and provide the resulting
+ * `clientId`, `clientSecret`, and `refreshToken` to this plugin. The plugin
+ * then uses the refresh token to obtain short-lived access tokens for the
+ * Onecta API.
  *
  * @file daikinClient.ts
  * @license Apache-2.0
  */
 
-import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as path from 'node:path';
@@ -21,14 +21,8 @@ import { AnsiLogger } from 'matterbridge/logger';
 const HTTP_TIMEOUT_MS = 30000;
 const TOKEN_FILE_MODE = 0o600;
 
-const DAIKIN_MOBILE_CONFIG = {
-  apiKey: '3_xRB3jaQ62bVjqXU1omaEsPDVYC0Twi1zfq1zHPu_5HFT0zWkDvZJS97Yw1loJnTm',
-  clientId: 'FjS6T5oZHvzpZENIDybFRdtK',
-  clientSecret: '_yWGLBGUnQFrN-u7uIOAZhSBsJOfcnBs0IS87wTgUvUmnLnEOs4NQmaKagqZBpQpG0XYl07KeCx8XHHKxAn24w',
-  redirectUri: 'daikinunified://cdc/',
-  gigyaBaseUrl: 'https://cdc.daikin.eu',
+const DAIKIN_API = {
   idpTokenEndpoint: 'https://idp.onecta.daikineurope.com/v1/oidc/token',
-  scope: 'openid onecta:onecta.application offline_access',
   apiBaseUrl: 'https://api.onecta.daikineurope.com',
 } as const;
 
@@ -54,8 +48,9 @@ export interface DaikinDevice {
 }
 
 export interface DaikinClientOptions {
-  email?: string;
-  password?: string;
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken?: string;
   tokenFile?: string;
 }
 
@@ -90,11 +85,10 @@ interface GatewayDevice {
 }
 
 /**
- * Daikin Onecta cloud client.
+ * Daikin Onecta cloud client using the official Developer Portal OAuth2 flow.
  */
 export class DaikinClient {
   private tokenSet: TokenSet | null = null;
-  private cookies = '';
   private refreshPromise: Promise<TokenSet> | null = null;
   private readonly demo: boolean;
   private readonly devices = new Map<string, DaikinDevice>();
@@ -110,19 +104,20 @@ export class DaikinClient {
     private readonly log: AnsiLogger,
     defaultTokenDir: string,
   ) {
-    this.demo = !options.email || !options.password;
+    this.demo = !options.clientId || !options.clientSecret || !options.refreshToken;
     this.tokenFile = options.tokenFile && options.tokenFile.length > 0 ? options.tokenFile : path.join(defaultTokenDir, 'daikin-onecta-tokens.json');
   }
 
   /**
    * Initialize the client. Loads cached tokens from disk; falls back to demo
-   * mode when credentials are missing.
+   * mode when API credentials are missing.
    *
    * @returns {Promise<void>} Resolves when the client is ready.
    */
   async initialize(): Promise<void> {
     if (this.demo) {
-      this.log.warn('Daikin Onecta credentials missing — running in demo mode with a simulated device.');
+      this.log.warn('Daikin Onecta API credentials missing — running in demo mode with a simulated device.');
+      this.log.warn('Register an app at https://developer.cloud.daikineurope.com and provide clientId, clientSecret and refreshToken in the plugin config.');
       this.devices.set('demo-ac', {
         id: 'demo-ac',
         name: 'Daikin Living Room',
@@ -138,17 +133,19 @@ export class DaikinClient {
     }
 
     this.loadTokenFromFile();
-    if (this.isAuthenticated()) {
-      this.log.info(`Loaded cached Daikin Onecta tokens from ${this.tokenFile}`);
-    } else {
-      this.log.info('Authenticating to Daikin Onecta cloud (mobile app flow)...');
-      try {
-        await this.authenticate();
-        this.log.info('Daikin Onecta authentication successful.');
-      } catch (error) {
-        this.log.error(`Daikin Onecta authentication failed: ${error instanceof Error ? error.message : String(error)}`);
-        return;
-      }
+    // Seed in-memory token set with the configured refresh token if no cached
+    // token is available (or if the cache lacks a refresh token).
+    if (!this.tokenSet?.refresh_token) {
+      this.tokenSet = { access_token: '', refresh_token: this.options.refreshToken, expires_at: 0 };
+    }
+
+    try {
+      this.log.info('Authenticating to Daikin Onecta cloud (Developer Portal API)...');
+      await this.refreshAccessToken();
+      this.log.info('Daikin Onecta authentication successful.');
+    } catch (error) {
+      this.log.error(`Daikin Onecta authentication failed: ${error instanceof Error ? error.message : String(error)}`);
+      return;
     }
     await this.loadDevices();
   }
@@ -247,26 +244,35 @@ export class DaikinClient {
   }
 
   private async getAccessToken(): Promise<string> {
-    if (!this.tokenSet) throw new Error('Not authenticated.');
-    if (this.tokenSet.expires_at && this.tokenSet.expires_at < Math.floor(Date.now() / 1000) + 30) {
-      if (!this.tokenSet.refresh_token) throw new Error('Token expired and no refresh token.');
+    if (!this.tokenSet?.refresh_token) throw new Error('Not authenticated.');
+    if (!this.tokenSet.access_token || (this.tokenSet.expires_at && this.tokenSet.expires_at < Math.floor(Date.now() / 1000) + 30)) {
       await this.refreshAccessToken();
     }
-    return this.tokenSet!.access_token;
+    return this.tokenSet.access_token;
   }
 
   private async refreshAccessToken(): Promise<TokenSet> {
     if (this.refreshPromise) return this.refreshPromise;
     this.refreshPromise = (async () => {
-      const basicAuth = Buffer.from(`${DAIKIN_MOBILE_CONFIG.clientId}:${DAIKIN_MOBILE_CONFIG.clientSecret}`).toString('base64');
-      const params = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: this.tokenSet!.refresh_token! });
+      if (!this.tokenSet?.refresh_token) throw new Error('No refresh token configured.');
+      const basicAuth = Buffer.from(`${this.options.clientId}:${this.options.clientSecret}`).toString('base64');
+      const params = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: this.tokenSet.refresh_token });
       const response = await this.httpsRequest(
-        DAIKIN_MOBILE_CONFIG.idpTokenEndpoint,
+        DAIKIN_API.idpTokenEndpoint,
         { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` } },
         params.toString(),
       );
-      const result = JSON.parse(response.body) as TokenSet & { error?: string; error_description?: string };
-      if (result.error) throw new Error(`Token refresh failed: ${result.error_description ?? result.error}`);
+      let result: TokenSet & { error?: string; error_description?: string };
+      try {
+        result = JSON.parse(response.body) as TokenSet & { error?: string; error_description?: string };
+      } catch {
+        throw new Error(`Token refresh failed (HTTP ${response.statusCode}): ${response.body}`);
+      }
+      if (result.error || response.statusCode >= 400) {
+        throw new Error(`Token refresh failed: ${result.error_description ?? result.error ?? `HTTP ${response.statusCode}`}`);
+      }
+      // Preserve the existing refresh token if Daikin does not rotate it.
+      if (!result.refresh_token) result.refresh_token = this.tokenSet!.refresh_token;
       this.storeTokenSet(result);
       return result;
     })();
@@ -275,189 +281,6 @@ export class DaikinClient {
     } finally {
       this.refreshPromise = null;
     }
-  }
-
-  private async authenticate(): Promise<TokenSet> {
-    const verifier = crypto.randomBytes(32).toString('base64url');
-    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-
-    const context = await this.getOidcContext(challenge);
-    this.cookies = await this.initGigyaSdk(context);
-    const loginToken = await this.gigyaLogin();
-    const code = await this.authorizeWithToken(context, loginToken);
-    const tokenSet = await this.exchangeCodeForTokens(code, verifier);
-    this.storeTokenSet(tokenSet);
-    return tokenSet;
-  }
-
-  private async getOidcContext(challenge: string): Promise<string> {
-    const params = new URLSearchParams({
-      client_id: DAIKIN_MOBILE_CONFIG.clientId,
-      redirect_uri: DAIKIN_MOBILE_CONFIG.redirectUri,
-      response_type: 'code',
-      scope: DAIKIN_MOBILE_CONFIG.scope,
-      code_challenge: challenge,
-      code_challenge_method: 'S256',
-      state: crypto.randomBytes(16).toString('hex'),
-    });
-    const url = `${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/oidc/op/v1.0/${DAIKIN_MOBILE_CONFIG.apiKey}/authorize?${params.toString()}`;
-    const response = await this.httpsRequest(url, { method: 'GET' });
-    if (response.statusCode === 302 && response.headers.location) {
-      const location = Array.isArray(response.headers.location) ? response.headers.location[0] : response.headers.location;
-      const match = location.match(/context=([^&]+)/);
-      if (match) return decodeURIComponent(match[1]);
-    }
-    throw new Error('Failed to get OIDC context');
-  }
-
-  private async initGigyaSdk(context: string): Promise<string> {
-    const proxyUrl = `https://id.daikin.eu/cdc/onecta/oidc/proxy.html?context=${encodeURIComponent(context)}&client_id=${DAIKIN_MOBILE_CONFIG.clientId}&mode=login&scope=${encodeURIComponent(DAIKIN_MOBILE_CONFIG.scope)}&gig_skipConsent=true`;
-    const params = new URLSearchParams({
-      apiKey: DAIKIN_MOBILE_CONFIG.apiKey,
-      pageURL: proxyUrl,
-      sdk: 'js_latest',
-      sdkBuild: '18305',
-      format: 'json',
-    });
-    const response = await this.httpsRequest(`${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/accounts.webSdkBootstrap?${params.toString()}`, {
-      method: 'GET',
-      headers: { Accept: '*/*', Origin: 'https://id.daikin.eu', Referer: 'https://id.daikin.eu/' },
-    });
-    const cookies: string[] = [];
-    const setCookies = response.headers['set-cookie'];
-    if (setCookies) {
-      const cookieArray = Array.isArray(setCookies) ? setCookies : [setCookies];
-      for (const cookie of cookieArray) {
-        const match = cookie.match(/^([^=]+=[^;]+)/);
-        if (match) cookies.push(match[1]);
-      }
-    }
-    cookies.push(`gig_bootstrap_${DAIKIN_MOBILE_CONFIG.apiKey}=cdc_ver4`);
-    return cookies.join('; ');
-  }
-
-  private gigyaSdkParams(): Record<string, string> {
-    return {
-      targetEnv: 'jssdk',
-      include: 'profile,data,emails,subscriptions,preferences,',
-      APIKey: DAIKIN_MOBILE_CONFIG.apiKey,
-      source: 'showScreenSet',
-      sdk: 'js_latest',
-      authMode: 'cookie',
-      pageURL: `https://id.daikin.eu/cdc/onecta/oidc/registration-login.html?gig_client_id=${DAIKIN_MOBILE_CONFIG.clientId}`,
-      sdkBuild: '18305',
-      format: 'json',
-    };
-  }
-
-  private async gigyaLogin(): Promise<string> {
-    const params = new URLSearchParams({
-      ...this.gigyaSdkParams(),
-      loginID: this.options.email!,
-      password: this.options.password!,
-      sessionExpiration: '31536000',
-      includeUserInfo: 'true',
-      loginMode: 'standard',
-      lang: 'en',
-    });
-    const response = await this.httpsRequest(
-      `${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/accounts.login`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Origin: 'https://id.daikin.eu',
-          Referer: 'https://id.daikin.eu/',
-          Cookie: this.cookies,
-        },
-      },
-      params.toString(),
-    );
-    const result = JSON.parse(response.body) as {
-      errorCode: number;
-      errorMessage?: string;
-      errorDetails?: string;
-      sessionInfo?: { login_token?: string };
-    };
-    // 206001: Account Pending Registration, 206002: Account Pending Verification.
-    // Daikin requires the account to be verified via a link sent by email; trigger the resend flow
-    // like the Homebridge plugin does, then surface a clear, actionable error to the user.
-    if (result.errorCode === 206001 || result.errorCode === 206002) {
-      await this.resendVerificationEmail(this.options.email!);
-      throw new Error(
-        `Daikin account "${this.options.email}" is not verified. A verification email has been sent. ` +
-          `Please click "Verify my account" in the email from Daikin, then restart Matterbridge.`,
-      );
-    }
-    if (result.errorCode !== 0 || !result.sessionInfo?.login_token) {
-      throw new Error(`Gigya login failed (${result.errorCode}): ${result.errorMessage ?? result.errorDetails ?? 'unknown error'}`);
-    }
-    return result.sessionInfo.login_token;
-  }
-
-  private async resendVerificationEmail(loginID: string): Promise<void> {
-    try {
-      const params = new URLSearchParams({
-        ...this.gigyaSdkParams(),
-        loginID,
-        lang: 'en',
-      });
-      const response = await this.httpsRequest(
-        `${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/accounts.resendVerificationCode`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Origin: 'https://id.daikin.eu',
-            Referer: 'https://id.daikin.eu/',
-            Cookie: this.cookies,
-          },
-        },
-        params.toString(),
-      );
-      const result = JSON.parse(response.body) as { errorCode: number; errorMessage?: string };
-      if (result.errorCode === 0) {
-        this.log.warn(`Daikin sent a verification email to ${loginID}. Click "Verify my account", then restart Matterbridge.`);
-      } else {
-        this.log.warn(`Failed to resend Daikin verification email (${result.errorCode}): ${result.errorMessage ?? 'unknown error'}`);
-      }
-    } catch (error) {
-      this.log.warn(`Failed to resend Daikin verification email: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  private async authorizeWithToken(context: string, loginToken: string): Promise<string> {
-    const params = new URLSearchParams({ context, login_token: loginToken });
-    const cookieStr = `${this.cookies}; glt_${DAIKIN_MOBILE_CONFIG.apiKey}=${loginToken}`;
-    const url = `${DAIKIN_MOBILE_CONFIG.gigyaBaseUrl}/oidc/op/v1.0/${DAIKIN_MOBILE_CONFIG.apiKey}/authorize/continue?${params.toString()}`;
-    const response = await this.httpsRequest(url, {
-      method: 'GET',
-      headers: { Cookie: cookieStr, Referer: 'https://id.daikin.eu/' },
-    });
-    if (response.statusCode === 302 && response.headers.location) {
-      const location = Array.isArray(response.headers.location) ? response.headers.location[0] : response.headers.location;
-      const match = location.match(/code=([^&]+)/);
-      if (match) return match[1];
-    }
-    throw new Error('Failed to get authorization code');
-  }
-
-  private async exchangeCodeForTokens(code: string, verifier: string): Promise<TokenSet> {
-    const basicAuth = Buffer.from(`${DAIKIN_MOBILE_CONFIG.clientId}:${DAIKIN_MOBILE_CONFIG.clientSecret}`).toString('base64');
-    const params = new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: DAIKIN_MOBILE_CONFIG.redirectUri,
-      code_verifier: verifier,
-    });
-    const response = await this.httpsRequest(
-      DAIKIN_MOBILE_CONFIG.idpTokenEndpoint,
-      { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basicAuth}` } },
-      params.toString(),
-    );
-    const result = JSON.parse(response.body) as TokenSet & { error?: string; error_description?: string };
-    if (result.error) throw new Error(`Token exchange failed: ${result.error_description ?? result.error}`);
-    return result;
   }
 
   // =====================================================================
@@ -533,7 +356,7 @@ export class DaikinClient {
   }
 
   private async patchDevice(device: DaikinDevice, dataPoint: string, value: unknown, dataPath?: string): Promise<void> {
-    const url = `${DAIKIN_MOBILE_CONFIG.apiBaseUrl}/v1/gateway-devices/${device.id}/management-points/${device.embeddedId}/characteristics/${dataPoint}`;
+    const url = `${DAIKIN_API.apiBaseUrl}/v1/gateway-devices/${device.id}/management-points/${device.embeddedId}/characteristics/${dataPoint}`;
     const body = JSON.stringify(dataPath ? { value, path: dataPath } : { value });
     const accessToken = await this.getAccessToken();
     const response = await this.httpsRequest(
@@ -555,7 +378,7 @@ export class DaikinClient {
 
   private async apiRequest<T>(path: string): Promise<T> {
     const accessToken = await this.getAccessToken();
-    const response = await this.httpsRequest(`${DAIKIN_MOBILE_CONFIG.apiBaseUrl}${path}`, {
+    const response = await this.httpsRequest(`${DAIKIN_API.apiBaseUrl}${path}`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
     });

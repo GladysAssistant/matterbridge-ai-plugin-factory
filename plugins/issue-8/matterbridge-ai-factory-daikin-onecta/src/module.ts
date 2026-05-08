@@ -45,8 +45,9 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
 
     this.client = new DaikinClient(
       {
-        email: this.config.email as string | undefined,
-        password: this.config.password as string | undefined,
+        clientId: this.config.clientId as string | undefined,
+        clientSecret: this.config.clientSecret as string | undefined,
+        refreshToken: this.config.refreshToken as string | undefined,
         tokenFile: this.config.tokenFile as string | undefined,
       },
       this.log,
