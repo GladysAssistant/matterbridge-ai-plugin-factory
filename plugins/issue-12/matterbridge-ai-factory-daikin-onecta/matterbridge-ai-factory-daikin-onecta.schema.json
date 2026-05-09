@@ -1,0 +1,79 @@
+{
+  "title": "Matterbridge Daikin Onecta",
+  "description": "matterbridge-ai-factory-daikin-onecta - Daikin Onecta cloud plugin",
+  "type": "object",
+  "required": ["oidcClientId", "oidcClientSecret", "oidcCallbackServerExternalAddress", "oidcCallbackServerPort"],
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "oidcClientId": {
+      "title": "OIDC Client ID",
+      "description": "Client ID from your registered application at https://developer.cloud.daikineurope.com",
+      "type": "string"
+    },
+    "oidcClientSecret": {
+      "title": "OIDC Client Secret",
+      "description": "Client Secret from your registered application at https://developer.cloud.daikineurope.com",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "oidcCallbackServerExternalAddress": {
+      "title": "Callback Server External Address",
+      "description": "Externally reachable hostname or IP of the machine running Matterbridge. Must match the Redirect URI registered in the Daikin Developer Portal (https://<address>:<port>/daikin-oauth-callback). 'localhost' / '127.0.0.1' is rejected by Daikin.",
+      "type": "string"
+    },
+    "oidcCallbackServerPort": {
+      "title": "Callback Server Port",
+      "description": "TCP port the callback HTTPS server listens on (must match the registered Redirect URI).",
+      "type": "integer",
+      "default": 8765
+    },
+    "pollIntervalMinutes": {
+      "title": "Poll interval (minutes)",
+      "description": "How often device data is refreshed from the Daikin cloud. Daikin enforces 200 requests/day; 15 min is recommended.",
+      "type": "integer",
+      "default": 15,
+      "minimum": 5
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Debug only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
