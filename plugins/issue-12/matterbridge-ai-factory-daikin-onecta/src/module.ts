@@ -40,7 +40,11 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
   private controller?: DaikinCloudController;
   private managed = new Map<string, ManagedDevice>();
   private pollTimer?: NodeJS.Timeout;
+  private authRetryTimer?: NodeJS.Timeout;
   private updatingFromCloud = false;
+  private authorizationUrl?: string;
+  private authorized = false;
+  private discoveryInProgress = false;
 
   constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
     super(matterbridge, log, config);
@@ -80,17 +84,18 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       oidcCallbackServerExternalAddress: externalAddress,
       oidcCallbackServerPort: port,
       oidcCallbackServerBindAddr: '0.0.0.0',
-      oidcAuthorizationTimeoutS: 300,
+      // Long timeout (30 min) so the user has time to open the URL and approve.
+      oidcAuthorizationTimeoutS: 1800,
       oidcTokenSetFilePath: tokenSetFilePath,
     });
 
     this.controller.on('authorization_request', (url: string) => {
-      this.log.notice('==================================================================');
-      this.log.notice('Daikin Onecta authorization required.');
-      this.log.notice(`Open this URL in your browser to authorize the plugin: ${url}`);
-      this.log.notice(`After approval Daikin will redirect to https://${externalAddress}:${port}/daikin-oauth-callback`);
-      this.log.notice('The redirect server uses a self-signed certificate; accept the browser warning.');
-      this.log.notice('==================================================================');
+      this.authorizationUrl = url;
+      this.logAuthorizationInstructions(externalAddress, port);
+    });
+    this.controller.on('token_update', () => {
+      this.authorized = true;
+      this.log.notice('Daikin Onecta authorization succeeded; token stored.');
     });
     this.controller.on('error', (err: Error) => {
       this.log.error(`Daikin controller error: ${err.message}`);
@@ -99,14 +104,68 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       this.log.debug(`Daikin rate-limit: minute=${status.remainingMinute}/${status.limitMinute} day=${status.remainingDay}/${status.limitDay}`);
     });
 
+    // Kick off discovery in the background so plugin startup is not blocked by
+    // the OIDC authorization round-trip. The user must visit the authorization
+    // URL printed in the logs to complete authorization the first time.
+    void this.discoverDevicesWithRetry();
+  }
+
+  /**
+   * Print authorization URL and instructions prominently in the log. Called
+   * every time the controller emits 'authorization_request' and on each retry
+   * so the URL is easy to find.
+   */
+  private logAuthorizationInstructions(externalAddress: string, port: number) {
+    if (!this.authorizationUrl) return;
+    this.log.notice('==================================================================');
+    this.log.notice('Daikin Onecta authorization required.');
+    this.log.notice('Open this URL in your browser to authorize the plugin:');
+    this.log.notice(this.authorizationUrl);
+    this.log.notice(`After approval Daikin will redirect to https://${externalAddress}:${port}/daikin-oauth-callback`);
+    this.log.notice('The redirect server uses a self-signed certificate; accept the browser warning.');
+    this.log.notice('Authorization stays valid until you revoke it; the token is cached on disk.');
+    this.log.notice('==================================================================');
+  }
+
+  /**
+   * Try to discover Daikin devices. If authorization is not yet complete this
+   * blocks on getCloudDevices() until either the user completes the OIDC flow
+   * or the configured timeout fires. On timeout/error, schedule a retry so the
+   * URL is re-printed and the auth flow can be completed later.
+   */
+  private async discoverDevicesWithRetry(): Promise<void> {
+    if (!this.controller || this.discoveryInProgress) return;
+    this.discoveryInProgress = true;
     try {
       const devices: DaikinDevice[] = await this.controller.getCloudDevices();
+      this.authorized = true;
       this.log.info(`Discovered ${devices.length} Daikin device(s)`);
       for (const device of devices) {
-        await this.registerDaikinDevice(device);
+        try {
+          await this.registerDaikinDevice(device);
+        } catch (err) {
+          this.log.error(`Failed to register Daikin device: ${(err as Error).message}`);
+        }
       }
     } catch (err) {
-      this.log.error(`Failed to fetch Daikin devices: ${(err as Error).message}`);
+      const msg = (err as Error).message;
+      this.log.error(`Failed to fetch Daikin devices: ${msg}`);
+      if (/timeout|timed? out/i.test(msg) || !this.authorized) {
+        const retryS = 60;
+        this.log.notice(`Will retry Daikin authorization in ${retryS}s. Complete the authorization URL above to finish the flow.`);
+        this.authRetryTimer = setTimeout(() => {
+          this.authRetryTimer = undefined;
+          // Re-print the URL on each retry so it stays visible in the log.
+          if (this.authorizationUrl) {
+            const ext = this.config.oidcCallbackServerExternalAddress as string;
+            const p = (this.config.oidcCallbackServerPort as number | undefined) ?? 8765;
+            this.logAuthorizationInstructions(ext, p);
+          }
+          void this.discoverDevicesWithRetry();
+        }, retryS * 1000);
+      }
+    } finally {
+      this.discoveryInProgress = false;
     }
   }
 
@@ -138,12 +197,26 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       clearInterval(this.pollTimer);
       this.pollTimer = undefined;
     }
+    if (this.authRetryTimer) {
+      clearTimeout(this.authRetryTimer);
+      this.authRetryTimer = undefined;
+    }
     this.managed.clear();
     if (this.config.unregisterOnShutdown) await this.unregisterAllDevices();
   }
 
   private async pollAll() {
     if (!this.controller) return;
+    if (!this.authorized) {
+      // Authorization not complete yet; nothing to poll.
+      return;
+    }
+    if (this.managed.size === 0) {
+      // Authorized but no devices registered yet (e.g. discovery succeeded
+      // after onConfigure). Try discovery again.
+      void this.discoverDevicesWithRetry();
+      return;
+    }
     try {
       await this.controller.updateAllDeviceData();
       for (const md of this.managed.values()) {
