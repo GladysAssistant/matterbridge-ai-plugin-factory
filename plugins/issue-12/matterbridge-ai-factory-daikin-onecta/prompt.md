@@ -1,28 +1,8 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-The air conditioners are correctly registered in Matterbridge, however, there are several issues:
-
-The On/Off control is not present.
-
-The SET cooling setpoint and SET heating setpoint should not appear; instead, they should appear as follows (if Matterbridge is compatible):
-
-On/Off control
-Temperature Control: View current room temperature and set target temperature
-Operation Modes: Cooling, heating, and auto modes
-Fan Control: Adjust fan speed from the accessory settings
-Swing Mode: Enable/disable swing (if supported by your device)
-
-Optional integrated features (if Matterbridge is compatible):
-
-Extra Features (individually configurable):
-Powerful mode (showPowerfulMode)
-Econo mode (showEconoMode)
-Streamer mode (showStreamerMode)
-Outdoor silent mode (showOutdoorSilentMode)
-Indoor quiet mode (showIndoorSilentMode)
-Dry mode (showDryMode)
-Fan only mode (showFanOnlyMode)
+When activating extra features, only one device is created, whereas one device should be created per extra feature.
+When activating extra features, only one device is created, whereas one device should be created per extra feature. They also need to be named correctly; otherwise, it's impossible to know which extra feature is being referred to.
 
 Fix the code, then test:
 ```bash

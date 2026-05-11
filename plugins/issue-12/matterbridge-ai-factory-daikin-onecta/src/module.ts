@@ -323,7 +323,15 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       hasSwing,
     };
 
-    // Optional child OnOff switches for vendor-specific mode toggles.
+    device.on('updated', () => {
+      void this.pushDeviceStateToMatter(md);
+    });
+
+    await this.registerDevice(endpoint);
+    this.managed.set(serial, md);
+
+    // Optional separate OnOff switch devices for vendor-specific mode toggles.
+    // Each enabled extra mode becomes its own bridged device named "<AC name> <label>".
     for (const mode of EXTRA_MODES) {
       if (!this.config[mode.flag]) continue;
       // Skip if the device does not actually expose the data point.
@@ -332,22 +340,20 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
         this.log.debug(`[${name}] ${mode.label}: data point '${mode.dp}' not exposed by device`);
         continue;
       }
-      const childId = `${serial.replace(/[^A-Za-z0-9]/g, '')}-${mode.idSuffix}`;
-      const child = endpoint.addChildDeviceType(childId, [onOffSwitch], { id: childId });
-      child
+      const childSerial = `${serial}-${mode.idSuffix}`.slice(0, 30);
+      const childName = `${name} ${mode.label}`;
+      const childId = `${serial.replace(/[^A-Za-z0-9]/g, '')}${mode.idSuffix}`;
+      const childEndpoint = new MatterbridgeEndpoint([onOffSwitch, powerSource], { id: childId })
         .createDefaultIdentifyClusterServer()
         .createDefaultGroupsClusterServer()
+        .createDefaultBridgedDeviceBasicInformationClusterServer(childName, childSerial, 0xfff1, 'Daikin', `${model} ${mode.label}`)
+        .createDefaultPowerSourceWiredClusterServer()
         .createDefaultOnOffClusterServer(probe.value === DAIKIN_ON)
         .addRequiredClusterServers();
-      md.extraEndpoints.set(mode.dp, { endpoint: child, def: mode });
+      md.extraEndpoints.set(mode.dp, { endpoint: childEndpoint, def: mode });
+      await this.registerDevice(childEndpoint);
+      this.log.info(`Registered Daikin extra-mode device "${childName}" (${childSerial})`);
     }
-
-    device.on('updated', () => {
-      void this.pushDeviceStateToMatter(md);
-    });
-
-    await this.registerDevice(endpoint);
-    this.managed.set(serial, md);
     this.log.info(`Registered Daikin device "${name}" (${serial})${hasSwing ? ' [swing]' : ''}${md.extraEndpoints.size ? ` +${md.extraEndpoints.size} mode switches` : ''}`);
   }
 
