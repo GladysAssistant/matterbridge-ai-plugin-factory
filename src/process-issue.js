@@ -513,6 +513,56 @@ function killStrayMatterbridge() {
 }
 
 /**
+ * Build a short, human-readable summary of a Claude tool_use block, e.g.:
+ *   "Bash: npm run build"
+ *   "Edit: src/foo.ts"
+ *   "Read: package.json"
+ */
+function summarizeToolUse(block) {
+  const name = block.name || "tool";
+  const input = block.input || {};
+  let detail = "";
+  if (name === "Bash") {
+    detail = input.command || "";
+  } else if (name === "Read" || name === "Edit" || name === "Write") {
+    detail = input.file_path || input.path || "";
+  } else if (name === "Glob" || name === "Grep") {
+    detail = input.pattern || input.query || "";
+  } else if (name === "WebFetch") {
+    detail = input.url || "";
+  }
+  // Strip absolute paths to the workspace for readability
+  detail = String(detail).replace(/\/opt\/matterbridge-factory\//g, "");
+  if (detail.length > 200) detail = detail.slice(0, 200) + "…";
+  return detail ? `${name}: ${detail}` : name;
+}
+
+/**
+ * Format a transcript array (from runClaudeCodeCLI) into a Markdown block
+ * suitable for inclusion in a GitHub comment. Wraps in a collapsible
+ * `<details>` so the comment stays compact by default.
+ *
+ * GitHub comments are capped at 65,536 chars; we keep the whole block well
+ * under 30 KB to leave room for the rest of the comment.
+ */
+function formatTranscriptForComment(transcript) {
+  if (!transcript || transcript.length === 0) return "";
+
+  const MAX_BYTES = 25000;
+  // Render newest-last; truncate from the start if too long so the user
+  // always sees the final outcome.
+  let body = transcript.join("\n");
+  if (body.length > MAX_BYTES) {
+    const omitted = body.length - MAX_BYTES;
+    body =
+      `… (${omitted.toLocaleString()} earlier characters omitted) …\n\n` +
+      body.slice(-MAX_BYTES);
+  }
+
+  return `\n<details>\n<summary>🤖 Claude's actions (${transcript.length} steps)</summary>\n\n\`\`\`\n${body}\n\`\`\`\n\n</details>\n`;
+}
+
+/**
  * Run Claude Code CLI to generate the plugin
  */
 async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
@@ -575,24 +625,37 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
 
         console.log(`🤖 Claude process started (PID: ${claude.pid})`);
 
+        // Collect a human-readable transcript of Claude's actions so we can
+        // include it in the GitHub comment posted at the end of the run.
+        const transcript = [];
+        const pushEntry = (line) => {
+          // Cap individual entries to keep the final transcript manageable
+          if (line.length > 500) line = line.slice(0, 500) + "…";
+          transcript.push(line);
+        };
+
         claude.stdout.on("data", (data) => {
           const lines = data.toString().split("\n").filter(Boolean);
           for (const line of lines) {
             try {
               const event = JSON.parse(line);
-              // Log different event types
               if (event.type === "assistant" && event.message?.content) {
                 for (const block of event.message.content) {
                   if (block.type === "text") {
-                    console.log(`💬 ${block.text.substring(0, 200)}...`);
+                    const text = block.text.trim();
+                    if (!text) continue;
+                    console.log(`💬 ${text.substring(0, 200)}…`);
+                    pushEntry(`💬 ${text}`);
                   } else if (block.type === "tool_use") {
-                    console.log(`🔧 Tool: ${block.name}`);
+                    const summary = summarizeToolUse(block);
+                    console.log(`🔧 ${summary}`);
+                    pushEntry(`🔧 ${summary}`);
                   }
                 }
               } else if (event.type === "result") {
-                console.log(
-                  `✅ Result: ${event.result?.substring(0, 100) || "done"}`,
-                );
+                const result = event.result || "done";
+                console.log(`✅ Result: ${result.substring(0, 100)}`);
+                pushEntry(`✅ Result: ${result}`);
               }
             } catch {
               // Not JSON, print raw
@@ -608,7 +671,7 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         claude.on("close", (code, signal) => {
           killStrayMatterbridge();
           if (code === 0) {
-            resolve({ success: true });
+            resolve({ success: true, transcript });
           } else if (code === null) {
             reject(
               new Error(
@@ -1560,8 +1623,14 @@ I'll post an updated plugin when ready.
     );
 
     // Run Claude to fix the plugin
+    let claudeTranscript = [];
     try {
-      await runClaudeCodeCLI(issueNumber, prompt, pluginDir);
+      const claudeResult = await runClaudeCodeCLI(
+        issueNumber,
+        prompt,
+        pluginDir,
+      );
+      claudeTranscript = claudeResult?.transcript || [];
     } finally {
       // Clean up feedback images from /tmp (Claude has already read them)
       if (imagesDir) {
@@ -1605,6 +1674,7 @@ npm install ./${pluginName}-1.0.0.tgz
 ### 📦 [Download Updated Plugin](${artifactUrl})
 
 Please test again and let me know if the issue is resolved.
+${formatTranscriptForComment(claudeTranscript)}
 
 ---
 *This is an automated response from the Matterbridge AI Plugin Factory*`,
