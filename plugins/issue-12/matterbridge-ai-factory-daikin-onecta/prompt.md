@@ -1,8 +1,8 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-When activating extra features, only one device is created, whereas one device should be created per extra feature.
-When activating extra features, only one device is created, whereas one device should be created per extra feature. They also need to be named correctly; otherwise, it's impossible to know which extra feature is being referred to.
+I have two air conditioners with the same serial number that have appeared, but only one should be listed.
+For a single air conditioner, the following options should be available to enable or disable: capabilities: powerful, econo, streamer, outdoor-silent, dry-mode, fan-only
 
 Fix the code, then test:
 ```bash

@@ -87,9 +87,15 @@
       "type": "boolean",
       "default": false
     },
-    "showIndoorSilentMode": {
-      "title": "Show Indoor Quiet Mode",
-      "description": "Expose Daikin indoor-unit quiet mode as an OnOff switch child endpoint.",
+    "showDryMode": {
+      "title": "Show Dry Mode",
+      "description": "Expose Daikin Dry operation mode as an OnOff switch child endpoint. Turning it on sets the AC to dry mode and powers it on; turning it off powers the AC off.",
+      "type": "boolean",
+      "default": false
+    },
+    "showFanOnlyMode": {
+      "title": "Show Fan Only Mode",
+      "description": "Expose Daikin Fan Only operation mode as an OnOff switch child endpoint. Turning it on sets the AC to fan-only mode and powers it on; turning it off powers the AC off.",
       "type": "boolean",
       "default": false
     },
