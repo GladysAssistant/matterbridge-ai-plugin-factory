@@ -63,6 +63,36 @@
       "uniqueItems": true,
       "selectFrom": "name"
     },
+    "showPowerfulMode": {
+      "title": "Show Powerful Mode",
+      "description": "Expose Daikin Powerful mode as an OnOff switch child endpoint.",
+      "type": "boolean",
+      "default": false
+    },
+    "showEconoMode": {
+      "title": "Show Econo Mode",
+      "description": "Expose Daikin Econo mode as an OnOff switch child endpoint.",
+      "type": "boolean",
+      "default": false
+    },
+    "showStreamerMode": {
+      "title": "Show Streamer Mode",
+      "description": "Expose Daikin Streamer mode as an OnOff switch child endpoint.",
+      "type": "boolean",
+      "default": false
+    },
+    "showOutdoorSilentMode": {
+      "title": "Show Outdoor Silent Mode",
+      "description": "Expose Daikin outdoor-unit silent mode as an OnOff switch child endpoint.",
+      "type": "boolean",
+      "default": false
+    },
+    "showIndoorSilentMode": {
+      "title": "Show Indoor Quiet Mode",
+      "description": "Expose Daikin indoor-unit quiet mode as an OnOff switch child endpoint.",
+      "type": "boolean",
+      "default": false
+    },
     "debug": {
       "title": "Enable Debug",
       "description": "Enable debug logging.",
