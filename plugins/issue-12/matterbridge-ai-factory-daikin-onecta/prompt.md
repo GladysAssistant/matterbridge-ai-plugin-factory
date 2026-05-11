@@ -1,18 +1,17 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-I have this in the logs:
+The token was successfully retrieved after going to https://192.168.xx.xx:8567, and I have the following logs:
 
-error[16:49:17.360][Matterbridge plugin for Daikin Onecta cloud (BRP069C4x) air conditioners]Failed to fetch Daikin devices: Authorization time out
+```
+notice[19:10:02.915][PluginManager]Configured plugin matterbridge-ai-factory-daikin-onecta type DynamicPlatform
+notice[19:10:10.495][Matterbridge plugin for Daikin Onecta cloud (BRP069C4x) air conditioners]Daikin Onecta authorization succeeded; token stored.
+info[19:10:10.871][Matterbridge plugin for Daikin Onecta cloud (BRP069C4x) air conditioners]Discovered 1 Daikin device(s)
+```
 
-There is no option to validate the token.
+However, I don't see anything in the Devices tab under Matterbridge, and I only see this in the Home tab:
 
-There are actions that the user needs to perform manually.
-
-The Homebridge plugin allows you to open a web page on the Daikin website via an Authorization URL (Example: https://idep.onecta.daikineurope.com/v1/oidc/authorize?response_type=client_id=........&redirect_uri=....&scope=openid+onecta....&state=.....)
-This page waits for authentication and returns the token to the Redirect URI after acceptance on the page https://idp.onecta.daikineurope.com/va/oidc/consent
-
-You should be able to find an example of this plugin that does what I just described: https://www.npmjs.com/package/@mp-consulting/homebridge-daikin-cloud
+<img width="1511" height="144" alt="Image" src="https://github.com/user-attachments/assets/e23fd8ae-c744-4aca-8fa5-dd925d3fa334" />
 
 Fix the code, then test:
 ```bash

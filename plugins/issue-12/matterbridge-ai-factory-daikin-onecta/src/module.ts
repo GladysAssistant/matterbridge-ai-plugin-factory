@@ -104,10 +104,13 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       this.log.debug(`Daikin rate-limit: minute=${status.remainingMinute}/${status.limitMinute} day=${status.remainingDay}/${status.limitDay}`);
     });
 
-    // Kick off discovery in the background so plugin startup is not blocked by
-    // the OIDC authorization round-trip. The user must visit the authorization
-    // URL printed in the logs to complete authorization the first time.
-    void this.discoverDevicesWithRetry();
+    // Await discovery in onStart so devices register BEFORE onConfigure runs
+    // (otherwise Matterbridge does not wire them into the bridge). For a first-
+    // time user, this blocks until they complete the OIDC authorization URL
+    // that the controller emits via the 'authorization_request' event (the URL
+    // is logged before getCloudDevices() returns). With a cached token on disk
+    // this returns almost immediately.
+    await this.discoverDevicesWithRetry();
   }
 
   /**
