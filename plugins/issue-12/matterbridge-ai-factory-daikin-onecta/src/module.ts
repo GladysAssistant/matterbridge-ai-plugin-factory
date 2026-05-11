@@ -177,6 +177,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
     this.log.info('onConfigure');
 
     for (const md of this.managed.values()) {
+      await this.subscribeDeviceAttributes(md);
       await this.pushDeviceStateToMatter(md);
     }
 
@@ -274,7 +275,23 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
 
     const md: ManagedDevice = { device, endpoint, managementPointId: mpId, name };
 
-    // Subscribe to systemMode (Off / Heat / Cool / Auto)
+    device.on('updated', () => {
+      void this.pushDeviceStateToMatter(md);
+    });
+
+    await this.registerDevice(endpoint);
+    this.managed.set(serial, md);
+    this.log.info(`Registered Daikin device "${name}" (${serial})`);
+  }
+
+  /**
+   * Wire up attribute subscriptions after the endpoint is online. Subscribes must
+   * happen after registerDevice() and after the server node is up (onConfigure),
+   * otherwise the endpoint behaviors are not initialized and the subscribe hangs.
+   */
+  private async subscribeDeviceAttributes(md: ManagedDevice) {
+    const { endpoint } = md;
+
     await endpoint.subscribeAttribute(
       Thermostat.Cluster.id,
       'systemMode',
@@ -304,14 +321,6 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       },
       this.log,
     );
-
-    device.on('updated', () => {
-      void this.pushDeviceStateToMatter(md);
-    });
-
-    await this.registerDevice(endpoint);
-    this.managed.set(serial, md);
-    this.log.info(`Registered Daikin device "${name}" (${serial})`);
   }
 
   private async pushDeviceStateToMatter(md: ManagedDevice) {
