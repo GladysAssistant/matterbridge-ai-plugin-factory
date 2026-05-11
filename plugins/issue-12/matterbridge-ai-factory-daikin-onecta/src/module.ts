@@ -60,6 +60,9 @@ const EXTRA_MODES: ExtraModeDef[] = [
   { flag: 'showFanOnlyMode', dp: 'operationMode', subPath: undefined, label: 'Fan Only', idSuffix: 'FanOnly' },
 ];
 
+/** NumberTag semantic namespace id (Matter spec § 8). Used to disambiguate sibling onOffSwitch child endpoints. */
+const NUMBER_TAG_NAMESPACE_ID = 7;
+
 /** Map an ExtraModeDef idSuffix to the Daikin operationMode value it represents. */
 const OPERATION_MODE_BY_SUFFIX: Record<string, string> = {
   DryMode: MODE_DRY,
@@ -337,21 +340,15 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       hasSwing,
     };
 
-    device.on('updated', () => {
-      void this.pushDeviceStateToMatter(md);
-    });
-
-    await this.registerDevice(endpoint);
-    this.managed.set(serial, md);
-
-    // Optional separate OnOff switch devices for vendor-specific mode toggles.
-    // Each enabled extra mode becomes its own bridged device named "<AC name> <label>".
+    // Attach vendor-specific OnOff toggles as CHILD endpoints under the same bridged
+    // airConditioner device. This keeps every functionality (powerful, econo, dry, ...)
+    // grouped under one unique device id rather than spawning separate bridged devices.
+    let tagIndex = 1;
     for (const mode of EXTRA_MODES) {
       if (!this.config[mode.flag]) continue;
       const virtualOp = OPERATION_MODE_BY_SUFFIX[mode.idSuffix];
       let initialOn = false;
       if (virtualOp) {
-        // Virtual operationMode toggle: ON iff unit is on AND in this op mode.
         const opModeDp = device.getData(mpId, 'operationMode', undefined);
         const onOffDp = device.getData(mpId, 'onOffMode', undefined);
         if (!opModeDp) {
@@ -367,22 +364,30 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
         }
         initialOn = probe.value === DAIKIN_ON;
       }
-      const childSerial = `${serial}-${mode.idSuffix}`.slice(0, 30);
-      const childName = `${name} ${mode.label}`;
-      const childId = `${serial.replace(/[^A-Za-z0-9]/g, '')}${mode.idSuffix}`;
-      const childEndpoint = new MatterbridgeEndpoint([onOffSwitch, powerSource], { id: childId })
+      const childEndpoint = endpoint
+        .addChildDeviceType(mode.idSuffix, onOffSwitch, {
+          tagList: [{ mfgCode: null, namespaceId: NUMBER_TAG_NAMESPACE_ID, tag: tagIndex, label: mode.label }],
+        })
         .createDefaultIdentifyClusterServer()
         .createDefaultGroupsClusterServer()
-        .createDefaultBridgedDeviceBasicInformationClusterServer(childName, childSerial, 0xfff1, 'Daikin', `${model} ${mode.label}`)
-        .createDefaultPowerSourceWiredClusterServer()
         .createDefaultOnOffClusterServer(initialOn)
         .addRequiredClusterServers();
-      // Key by idSuffix so dry/fanOnly entries (both dp='operationMode') don't collide.
+      tagIndex += 1;
       md.extraEndpoints.set(mode.idSuffix, { endpoint: childEndpoint, def: mode });
-      await this.registerDevice(childEndpoint);
-      this.log.info(`Registered Daikin extra-mode device "${childName}" (${childSerial})`);
     }
-    this.log.info(`Registered Daikin device "${name}" (${serial})${hasSwing ? ' [swing]' : ''}${md.extraEndpoints.size ? ` +${md.extraEndpoints.size} mode switches` : ''}`);
+
+    device.on('updated', () => {
+      void this.pushDeviceStateToMatter(md);
+    });
+
+    await this.registerDevice(endpoint);
+    this.managed.set(serial, md);
+
+    this.log.info(
+      `Registered Daikin device "${name}" (${serial})${hasSwing ? ' [swing]' : ''}${
+        md.extraEndpoints.size ? ` +${md.extraEndpoints.size} mode switches` : ''
+      }`,
+    );
   }
 
   private async subscribeDeviceAttributes(md: ManagedDevice) {

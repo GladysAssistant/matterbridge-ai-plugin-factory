@@ -1,8 +1,9 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-I have two air conditioners with the same serial number that have appeared, but only one should be listed.
-For a single air conditioner, the following options should be available to enable or disable: capabilities: powerful, econo, streamer, outdoor-silent, dry-mode, fan-only
+This isn't good.
+All modes should be grouped under the same device/endpoint/unique ID, and a separate device/endpoint/unique ID shouldn't be created for the powerful mode.
+Instead, each functionality should be under the same device/endpoint. Multiple On/Off functions should be allowed under the same device/endpoint.
 
 Fix the code, then test:
 ```bash
