@@ -1,0 +1,110 @@
+{
+  "title": "Matterbridge Freebox Player (Delta / Revolution) plugin",
+  "description": "Matterbridge plugin exposing the Freebox Player Delta (Devialet) and Revolution as Matter media devices via the FreeboxOS Player API.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Freebox host",
+      "description": "Freebox API host (default: mafreebox.freebox.fr). Override with the LAN IP if mDNS / hosts resolution does not work.",
+      "type": "string",
+      "default": "mafreebox.freebox.fr"
+    },
+    "appId": {
+      "title": "App ID",
+      "description": "Application identifier registered with the Freebox.",
+      "type": "string",
+      "default": "com.matterbridge.freebox"
+    },
+    "appName": {
+      "title": "App Name",
+      "type": "string",
+      "default": "Matterbridge Freebox"
+    },
+    "appVersion": {
+      "title": "App Version",
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "deviceName": {
+      "title": "Device Name (shown on Freebox panel)",
+      "type": "string",
+      "default": "Matterbridge"
+    },
+    "appToken": {
+      "title": "App Token",
+      "description": "Persistent token returned by the Freebox after the user validated the app on the front panel. Leave empty on first start to trigger registration; the plugin will fill it once granted.",
+      "type": "string",
+      "default": ""
+    },
+    "airplayPort": {
+      "title": "AirPlay TCP port",
+      "description": "TCP port probed to detect if the player is ON. AirPlay default is 7000.",
+      "type": "number",
+      "default": 7000
+    },
+    "alternativeAirplayPort": {
+      "title": "Alternative AirPlay TCP port",
+      "description": "Fallback TCP port for power detection if 7000 is filtered (try 54243).",
+      "type": "number",
+      "default": 54243
+    },
+    "pollIntervalMs": {
+      "title": "Poll interval (ms)",
+      "description": "How often to refresh power/volume/status.",
+      "type": "number",
+      "default": 15000,
+      "minimum": 3000
+    },
+    "players": {
+      "title": "Players (manual override)",
+      "description": "Optional list of players to expose. If empty, the plugin auto-discovers via the Freebox API. Each entry: { id, name, host }.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "title": "Player id", "type": "number" },
+          "name": { "title": "Friendly name", "type": "string" },
+          "host": { "title": "Player LAN host/IP (for AirPlay probe)", "type": "string" }
+        }
+      }
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "matterbridge-ai-factory-freebox-player-delta-devialet-and-r-volution-freeboxos-player-api",
+  "version": "1.0.0",
+  "description": "Matterbridge plugin for Freebox Player Delta (Devialet) and Revolution via FreeboxOS Player API",
+  "author": "Matterbridge AI Factory",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/module.js",
+  "types": "dist/module.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js",
+      "types": "./dist/module.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "files": [
+    "dist",
+    "*.config.json",
+    "*.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "clean": "npx shx rm -rf *.tsbuildinfo dist",
+    "cleanBuild": "npm run clean && npm run build",
+    "matterbridge:add": "matterbridge -add .",
+    "matterbridge:remove": "matterbridge -remove ."
+  },
+  "dependencies": {
+    "node-ansi-logger": "3.2.1",
+    "node-persist-manager": "2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.2",
+    "shx": "0.4.0",
+    "typescript": "6.0.3"
+  },
+  "keywords": [
+    "matterbridge",
+    "plugin",
+    "freebox",
+    "freeboxos",
+    "free",
+    "devialet",
+    "delta",
+    "revolution",
+    "tv",
+    "media",
+    "matter",
+    "iot",
+    "homeautomation"
+  ]
+}
