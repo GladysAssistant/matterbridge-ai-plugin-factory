@@ -20,6 +20,7 @@ import {
   PlatformConfig,
   PlatformMatterbridge,
   airConditioner,
+  modeSelect,
   powerSource,
 } from 'matterbridge';
 import { FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
@@ -94,6 +95,7 @@ export default function initializePlugin(matterbridge: PlatformMatterbridge, log
 interface ManagedDevice {
   device: DaikinDevice;
   endpoint: MatterbridgeEndpoint;
+  modeEndpoint: MatterbridgeEndpoint;
   managementPointId: string;
   name: string;
   hasSwing: boolean;
@@ -331,8 +333,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       .createDefaultPowerSourceWiredClusterServer()
       .createDeadFrontOnOffClusterServer(false)
       .createDefaultThermostatClusterServer(initialLocal, initialHeatSp, initialCoolSp, 1, minHeat, maxHeat, minCool, maxCool)
-      .createDefaultThermostatUserInterfaceConfigurationClusterServer()
-      .createDefaultModeSelectClusterServer('AC Mode', AC_SUPPORTED_MODES, initialAcMode, initialAcMode);
+      .createDefaultThermostatUserInterfaceConfigurationClusterServer();
 
     if (hasSwing) {
       endpoint.createCompleteFanControlClusterServer(
@@ -352,9 +353,19 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
 
     endpoint.addRequiredClusterServers();
 
+    // ModeSelect must live on a child endpoint with the modeSelect device type;
+    // the airConditioner device type does not declare ModeSelect as required or
+    // optional, so external controllers ignore it when placed on the AC endpoint.
+    const modeEndpoint = endpoint.addChildDeviceType('AcMode', modeSelect, { tagList: [] });
+    modeEndpoint
+      .createDefaultIdentifyClusterServer()
+      .createDefaultModeSelectClusterServer('AC Mode', AC_SUPPORTED_MODES, initialAcMode, initialAcMode);
+    modeEndpoint.addRequiredClusterServers();
+
     const md: ManagedDevice = {
       device,
       endpoint,
+      modeEndpoint,
       managementPointId: mpId,
       name,
       hasSwing,
@@ -418,7 +429,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
-    endpoint.addCommandHandler('ModeSelect.changeToMode', async (data) => {
+    md.modeEndpoint.addCommandHandler('changeToMode', async (data) => {
       if (this.updatingFromCloud) return;
       const newMode = (data as { request?: { newMode?: number } }).request?.newMode;
       if (typeof newMode !== 'number') return;
@@ -488,10 +499,11 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       }
       await endpoint.updateAttribute(Thermostat.Cluster.id, 'systemMode', systemMode, this.log);
 
-      // ModeSelect: surface AC operation mode independently of Thermostat for
-      // controllers that don't expose Dry/FanOnly via SystemMode.
+      // ModeSelect lives on a child endpoint (modeSelect device type) so that
+      // controllers expose the AC operation mode independently of Thermostat,
+      // surfacing Dry/FanOnly even when SystemMode does not.
       const acMode = daikinModeToAcMode(opMode?.value as string | undefined);
-      await endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', acMode, this.log);
+      await md.modeEndpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', acMode, this.log);
 
       if (sensor && typeof sensor.value === 'number') {
         await endpoint.updateAttribute(Thermostat.Cluster.id, 'localTemperature', Math.round(sensor.value * 100), this.log);
@@ -600,7 +612,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       await device.setData(mpId, 'onOffMode', undefined, DAIKIN_ON);
       this.updatingFromCloud = true;
       try {
-        await md.endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', daikinModeToAcMode(daikinMode), this.log);
+        await md.modeEndpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', daikinModeToAcMode(daikinMode), this.log);
       } finally {
         this.updatingFromCloud = false;
       }
