@@ -95,7 +95,6 @@ export default function initializePlugin(matterbridge: PlatformMatterbridge, log
 interface ManagedDevice {
   device: DaikinDevice;
   endpoint: MatterbridgeEndpoint;
-  modeEndpoint: MatterbridgeEndpoint;
   managementPointId: string;
   name: string;
   hasSwing: boolean;
@@ -327,13 +326,14 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
     const opModeDp = device.getData(mpId, 'operationMode', undefined);
     const initialAcMode = daikinModeToAcMode(opModeDp?.value as string | undefined);
 
-    const endpoint = new MatterbridgeEndpoint([airConditioner, powerSource], { id: serial.replace(/[^A-Za-z0-9]/g, '') })
+    const endpoint = new MatterbridgeEndpoint([airConditioner, modeSelect, powerSource], { id: serial.replace(/[^A-Za-z0-9]/g, '') })
       .createDefaultIdentifyClusterServer()
       .createDefaultBridgedDeviceBasicInformationClusterServer(name, serial, 0xfff1, 'Daikin', model)
       .createDefaultPowerSourceWiredClusterServer()
       .createDeadFrontOnOffClusterServer(false)
       .createDefaultThermostatClusterServer(initialLocal, initialHeatSp, initialCoolSp, 1, minHeat, maxHeat, minCool, maxCool)
-      .createDefaultThermostatUserInterfaceConfigurationClusterServer();
+      .createDefaultThermostatUserInterfaceConfigurationClusterServer()
+      .createDefaultModeSelectClusterServer('AC Mode', AC_SUPPORTED_MODES, initialAcMode, initialAcMode);
 
     if (hasSwing) {
       endpoint.createCompleteFanControlClusterServer(
@@ -353,19 +353,9 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
 
     endpoint.addRequiredClusterServers();
 
-    // ModeSelect must live on a child endpoint with the modeSelect device type;
-    // the airConditioner device type does not declare ModeSelect as required or
-    // optional, so external controllers ignore it when placed on the AC endpoint.
-    const modeEndpoint = endpoint.addChildDeviceType('AcMode', modeSelect, { tagList: [] });
-    modeEndpoint
-      .createDefaultIdentifyClusterServer()
-      .createDefaultModeSelectClusterServer('AC Mode', AC_SUPPORTED_MODES, initialAcMode, initialAcMode);
-    modeEndpoint.addRequiredClusterServers();
-
     const md: ManagedDevice = {
       device,
       endpoint,
-      modeEndpoint,
       managementPointId: mpId,
       name,
       hasSwing,
@@ -429,7 +419,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
-    md.modeEndpoint.addCommandHandler('changeToMode', async (data) => {
+    endpoint.addCommandHandler('changeToMode', async (data) => {
       if (this.updatingFromCloud) return;
       const newMode = (data as { request?: { newMode?: number } }).request?.newMode;
       if (typeof newMode !== 'number') return;
@@ -499,11 +489,11 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       }
       await endpoint.updateAttribute(Thermostat.Cluster.id, 'systemMode', systemMode, this.log);
 
-      // ModeSelect lives on a child endpoint (modeSelect device type) so that
-      // controllers expose the AC operation mode independently of Thermostat,
-      // surfacing Dry/FanOnly even when SystemMode does not.
+      // ModeSelect cluster on the same endpoint (modeSelect declared as a
+      // secondary device type) so controllers expose the AC operation mode
+      // independently of Thermostat, surfacing Dry/FanOnly when SystemMode does not.
       const acMode = daikinModeToAcMode(opMode?.value as string | undefined);
-      await md.modeEndpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', acMode, this.log);
+      await endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', acMode, this.log);
 
       if (sensor && typeof sensor.value === 'number') {
         await endpoint.updateAttribute(Thermostat.Cluster.id, 'localTemperature', Math.round(sensor.value * 100), this.log);
@@ -612,7 +602,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       await device.setData(mpId, 'onOffMode', undefined, DAIKIN_ON);
       this.updatingFromCloud = true;
       try {
-        await md.modeEndpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', daikinModeToAcMode(daikinMode), this.log);
+        await md.endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', daikinModeToAcMode(daikinMode), this.log);
       } finally {
         this.updatingFromCloud = false;
       }
