@@ -1,9 +1,7 @@
 Fix bug in matterbridge-ai-factory-daikin-onecta. Be concise, write code not explanations.
 
 Bug report:
-This isn't good.
-All modes should be grouped under the same device/endpoint/unique ID, and a separate device/endpoint/unique ID shouldn't be created for the powerful mode.
-Instead, each functionality should be under the same device/endpoint. Multiple On/Off functions should be allowed under the same device/endpoint.
+It's better in the Matterbridge view, however, when integrating the air conditioner onto another Matter controller, we still see 2 child endpoints when we should only have one that groups them all.
 
 Fix the code, then test:
 ```bash

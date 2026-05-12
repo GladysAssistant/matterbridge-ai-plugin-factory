@@ -1,12 +1,15 @@
 /**
  * matterbridge-ai-factory-daikin-onecta
  *
- * Bridges Daikin Onecta cloud air conditioners (BRP069C4x) into Matter as
- * airConditioner endpoints with: OnOff, Thermostat (heat/cool/auto/dry/fanOnly
- * via SystemMode plus heating / cooling setpoints and current room
- * temperature), FanControl (fan speed + optional swing/rocking), and optional
- * child OnOff switches for vendor-specific feature toggles (powerful, econo,
- * streamer, outdoor silent, indoor quiet).
+ * Bridges Daikin Onecta cloud air conditioners (BRP069C4x) into Matter as a
+ * single airConditioner endpoint with: OnOff, Thermostat (heat/cool/auto/dry/
+ * fanOnly via SystemMode plus heating / cooling setpoints and current room
+ * temperature), FanControl (fan speed + optional swing/rocking).
+ *
+ * No child endpoints are created: external Matter controllers (Apple Home,
+ * Google, Home Assistant) display every bridged Daikin unit as one device.
+ * Daikin operation modes (dry, fanOnly) are exposed through the standard
+ * Matter Thermostat.SystemMode attribute rather than separate child switches.
  */
 
 import path from 'node:path';
@@ -17,7 +20,6 @@ import {
   PlatformConfig,
   PlatformMatterbridge,
   airConditioner,
-  onOffSwitch,
   powerSource,
 } from 'matterbridge';
 import { FanControl, OnOff, Thermostat } from 'matterbridge/matter/clusters';
@@ -36,39 +38,6 @@ const MODE_AUTO = 'auto';
 const MODE_DRY = 'dry';
 const MODE_FAN_ONLY = 'fanOnly';
 
-interface ExtraModeDef {
-  /** Config flag name in PlatformConfig. */
-  flag: string;
-  /** Daikin onecta data point used by setData / getData. */
-  dp: string;
-  /** Optional sub-path passed to getData/setData (some toggles use a path like '/silentMode'). */
-  subPath?: string;
-  /** Short human label for the child endpoint name. */
-  label: string;
-  /** Endpoint id suffix. */
-  idSuffix: string;
-}
-
-const EXTRA_MODES: ExtraModeDef[] = [
-  { flag: 'showPowerfulMode', dp: 'powerfulMode', label: 'Powerful', idSuffix: 'Powerful' },
-  { flag: 'showEconoMode', dp: 'econoMode', label: 'Econo', idSuffix: 'Econo' },
-  { flag: 'showStreamerMode', dp: 'streamerMode', label: 'Streamer', idSuffix: 'Streamer' },
-  { flag: 'showOutdoorSilentMode', dp: 'outdoorSilentMode', label: 'Outdoor Silent', idSuffix: 'OutdoorSilent' },
-  // Virtual mode toggles: ON switches operationMode to dry/fanOnly (and powers the unit on),
-  // OFF powers the unit off. Marked with operationMode so handlers know to special-case them.
-  { flag: 'showDryMode', dp: 'operationMode', subPath: undefined, label: 'Dry Mode', idSuffix: 'DryMode' },
-  { flag: 'showFanOnlyMode', dp: 'operationMode', subPath: undefined, label: 'Fan Only', idSuffix: 'FanOnly' },
-];
-
-/** NumberTag semantic namespace id (Matter spec § 8). Used to disambiguate sibling onOffSwitch child endpoints. */
-const NUMBER_TAG_NAMESPACE_ID = 7;
-
-/** Map an ExtraModeDef idSuffix to the Daikin operationMode value it represents. */
-const OPERATION_MODE_BY_SUFFIX: Record<string, string> = {
-  DryMode: MODE_DRY,
-  FanOnly: MODE_FAN_ONLY,
-};
-
 export default function initializePlugin(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig): DaikinOnectaPlatform {
   return new DaikinOnectaPlatform(matterbridge, log, config);
 }
@@ -78,7 +47,6 @@ interface ManagedDevice {
   endpoint: MatterbridgeEndpoint;
   managementPointId: string;
   name: string;
-  extraEndpoints: Map<string, { endpoint: MatterbridgeEndpoint; def: ExtraModeDef }>;
   hasSwing: boolean;
 }
 
@@ -336,45 +304,8 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       endpoint,
       managementPointId: mpId,
       name,
-      extraEndpoints: new Map(),
       hasSwing,
     };
-
-    // Attach vendor-specific OnOff toggles as CHILD endpoints under the same bridged
-    // airConditioner device. This keeps every functionality (powerful, econo, dry, ...)
-    // grouped under one unique device id rather than spawning separate bridged devices.
-    let tagIndex = 1;
-    for (const mode of EXTRA_MODES) {
-      if (!this.config[mode.flag]) continue;
-      const virtualOp = OPERATION_MODE_BY_SUFFIX[mode.idSuffix];
-      let initialOn = false;
-      if (virtualOp) {
-        const opModeDp = device.getData(mpId, 'operationMode', undefined);
-        const onOffDp = device.getData(mpId, 'onOffMode', undefined);
-        if (!opModeDp) {
-          this.log.debug(`[${name}] ${mode.label}: operationMode not exposed by device`);
-          continue;
-        }
-        initialOn = onOffDp?.value === DAIKIN_ON && opModeDp?.value === virtualOp;
-      } else {
-        const probe = device.getData(mpId, mode.dp, mode.subPath);
-        if (!probe) {
-          this.log.debug(`[${name}] ${mode.label}: data point '${mode.dp}' not exposed by device`);
-          continue;
-        }
-        initialOn = probe.value === DAIKIN_ON;
-      }
-      const childEndpoint = endpoint
-        .addChildDeviceType(mode.idSuffix, onOffSwitch, {
-          tagList: [{ mfgCode: null, namespaceId: NUMBER_TAG_NAMESPACE_ID, tag: tagIndex, label: mode.label }],
-        })
-        .createDefaultIdentifyClusterServer()
-        .createDefaultGroupsClusterServer()
-        .createDefaultOnOffClusterServer(initialOn)
-        .addRequiredClusterServers();
-      tagIndex += 1;
-      md.extraEndpoints.set(mode.idSuffix, { endpoint: childEndpoint, def: mode });
-    }
 
     device.on('updated', () => {
       void this.pushDeviceStateToMatter(md);
@@ -383,11 +314,7 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
     await this.registerDevice(endpoint);
     this.managed.set(serial, md);
 
-    this.log.info(
-      `Registered Daikin device "${name}" (${serial})${hasSwing ? ' [swing]' : ''}${
-        md.extraEndpoints.size ? ` +${md.extraEndpoints.size} mode switches` : ''
-      }`,
-    );
+    this.log.info(`Registered Daikin device "${name}" (${serial})${hasSwing ? ' [swing]' : ''}`);
   }
 
   private async subscribeDeviceAttributes(md: ManagedDevice) {
@@ -459,23 +386,6 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
         this.log,
       );
     }
-
-    // Subscribe child OnOff for extra mode switches.
-    for (const [, child] of md.extraEndpoints) {
-      child.endpoint.addCommandHandler('on', async () => {
-        if (this.updatingFromCloud) return;
-        await this.handleExtraModeChange(md, child.def, true);
-      });
-      child.endpoint.addCommandHandler('off', async () => {
-        if (this.updatingFromCloud) return;
-        await this.handleExtraModeChange(md, child.def, false);
-      });
-      child.endpoint.addCommandHandler('toggle', async () => {
-        if (this.updatingFromCloud) return;
-        const current = child.endpoint.getAttribute(OnOff.Cluster.id, 'onOff', this.log);
-        await this.handleExtraModeChange(md, child.def, !current);
-      });
-    }
   }
 
   private async pushDeviceStateToMatter(md: ManagedDevice) {
@@ -544,20 +454,6 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
           { rockUpDown: swingV, rockLeftRight: swingH, rockRound: false },
           this.log,
         );
-      }
-
-      // Extra mode switches.
-      for (const [, child] of md.extraEndpoints) {
-        const virtualOp = OPERATION_MODE_BY_SUFFIX[child.def.idSuffix];
-        if (virtualOp) {
-          const childOn = isOn && opMode?.value === virtualOp;
-          await child.endpoint.updateAttribute(OnOff.Cluster.id, 'onOff', childOn, this.log);
-        } else {
-          const dp = device.getData(mpId, child.def.dp, child.def.subPath);
-          if (dp) {
-            await child.endpoint.updateAttribute(OnOff.Cluster.id, 'onOff', dp.value === DAIKIN_ON, this.log);
-          }
-        }
       }
     } catch (err) {
       this.log.error(`Failed to update Matter state for ${md.name}: ${(err as Error).message}`);
@@ -682,26 +578,6 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       );
     } catch (err) {
       this.log.error(`[${md.name}] swing set failed: ${(err as Error).message}`);
-    }
-  }
-
-  private async handleExtraModeChange(md: ManagedDevice, def: ExtraModeDef, on: boolean) {
-    const { device, managementPointId: mpId } = md;
-    this.log.info(`[${md.name}] SET ${def.label}=${on}`);
-    try {
-      const virtualOp = OPERATION_MODE_BY_SUFFIX[def.idSuffix];
-      if (virtualOp) {
-        if (on) {
-          await device.setData(mpId, 'operationMode', undefined, virtualOp);
-          await device.setData(mpId, 'onOffMode', undefined, DAIKIN_ON);
-        } else {
-          await device.setData(mpId, 'onOffMode', undefined, DAIKIN_OFF);
-        }
-        return;
-      }
-      await device.setData(mpId, def.dp, def.subPath, on ? DAIKIN_ON : DAIKIN_OFF);
-    } catch (err) {
-      this.log.error(`[${md.name}] ${def.label} set failed: ${(err as Error).message}`);
     }
   }
 }
