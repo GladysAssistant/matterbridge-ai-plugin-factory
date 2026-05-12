@@ -22,7 +22,7 @@ import {
   airConditioner,
   powerSource,
 } from 'matterbridge';
-import { FanControl, OnOff, Thermostat } from 'matterbridge/matter/clusters';
+import { FanControl, ModeSelect, OnOff, Thermostat } from 'matterbridge/matter/clusters';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
 
 import { DaikinCloudController } from 'daikin-controller-cloud';
@@ -37,6 +37,55 @@ const MODE_COOLING = 'cooling';
 const MODE_AUTO = 'auto';
 const MODE_DRY = 'dry';
 const MODE_FAN_ONLY = 'fanOnly';
+
+// ModeSelect supportedModes for AC operation mode.
+// Exposed as a separate cluster so controllers (HomeKit/HA/Google) that don't
+// surface Thermostat.SystemMode Dry/FanOnly still get an "AC Mode" selector.
+const AC_MODE_AUTO = 0;
+const AC_MODE_HEATING = 1;
+const AC_MODE_COOLING = 2;
+const AC_MODE_DRY = 3;
+const AC_MODE_FAN_ONLY = 4;
+
+const AC_SUPPORTED_MODES: ModeSelect.ModeOption[] = [
+  { label: 'Auto', mode: AC_MODE_AUTO, semanticTags: [] },
+  { label: 'Heating', mode: AC_MODE_HEATING, semanticTags: [] },
+  { label: 'Cooling', mode: AC_MODE_COOLING, semanticTags: [] },
+  { label: 'Drying', mode: AC_MODE_DRY, semanticTags: [] },
+  { label: 'Fan', mode: AC_MODE_FAN_ONLY, semanticTags: [] },
+];
+
+function daikinModeToAcMode(daikin: string | undefined): number {
+  switch (daikin) {
+    case MODE_HEATING:
+      return AC_MODE_HEATING;
+    case MODE_COOLING:
+      return AC_MODE_COOLING;
+    case MODE_DRY:
+      return AC_MODE_DRY;
+    case MODE_FAN_ONLY:
+      return AC_MODE_FAN_ONLY;
+    case MODE_AUTO:
+    default:
+      return AC_MODE_AUTO;
+  }
+}
+
+function acModeToDaikin(mode: number): string {
+  switch (mode) {
+    case AC_MODE_HEATING:
+      return MODE_HEATING;
+    case AC_MODE_COOLING:
+      return MODE_COOLING;
+    case AC_MODE_DRY:
+      return MODE_DRY;
+    case AC_MODE_FAN_ONLY:
+      return MODE_FAN_ONLY;
+    case AC_MODE_AUTO:
+    default:
+      return MODE_AUTO;
+  }
+}
 
 export default function initializePlugin(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig): DaikinOnectaPlatform {
   return new DaikinOnectaPlatform(matterbridge, log, config);
@@ -273,13 +322,17 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
     const hasHorizontalSwing = !!swingHorizHeat;
     const hasSwing = hasVerticalSwing || hasHorizontalSwing;
 
+    const opModeDp = device.getData(mpId, 'operationMode', undefined);
+    const initialAcMode = daikinModeToAcMode(opModeDp?.value as string | undefined);
+
     const endpoint = new MatterbridgeEndpoint([airConditioner, powerSource], { id: serial.replace(/[^A-Za-z0-9]/g, '') })
       .createDefaultIdentifyClusterServer()
       .createDefaultBridgedDeviceBasicInformationClusterServer(name, serial, 0xfff1, 'Daikin', model)
       .createDefaultPowerSourceWiredClusterServer()
       .createDeadFrontOnOffClusterServer(false)
       .createDefaultThermostatClusterServer(initialLocal, initialHeatSp, initialCoolSp, 1, minHeat, maxHeat, minCool, maxCool)
-      .createDefaultThermostatUserInterfaceConfigurationClusterServer();
+      .createDefaultThermostatUserInterfaceConfigurationClusterServer()
+      .createDefaultModeSelectClusterServer('AC Mode', AC_SUPPORTED_MODES, initialAcMode, initialAcMode);
 
     if (hasSwing) {
       endpoint.createCompleteFanControlClusterServer(
@@ -365,6 +418,13 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
       this.log,
     );
 
+    endpoint.addCommandHandler('ModeSelect.changeToMode', async (data) => {
+      if (this.updatingFromCloud) return;
+      const newMode = (data as { request?: { newMode?: number } }).request?.newMode;
+      if (typeof newMode !== 'number') return;
+      await this.handleAcModeChange(md, newMode);
+    });
+
     await endpoint.subscribeAttribute(
       FanControl.Cluster.id,
       'fanMode',
@@ -427,6 +487,11 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
         }
       }
       await endpoint.updateAttribute(Thermostat.Cluster.id, 'systemMode', systemMode, this.log);
+
+      // ModeSelect: surface AC operation mode independently of Thermostat for
+      // controllers that don't expose Dry/FanOnly via SystemMode.
+      const acMode = daikinModeToAcMode(opMode?.value as string | undefined);
+      await endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', acMode, this.log);
 
       if (sensor && typeof sensor.value === 'number') {
         await endpoint.updateAttribute(Thermostat.Cluster.id, 'localTemperature', Math.round(sensor.value * 100), this.log);
@@ -533,8 +598,39 @@ export class DaikinOnectaPlatform extends MatterbridgeDynamicPlatform {
 
       await device.setData(mpId, 'operationMode', undefined, daikinMode);
       await device.setData(mpId, 'onOffMode', undefined, DAIKIN_ON);
+      this.updatingFromCloud = true;
+      try {
+        await md.endpoint.updateAttribute(ModeSelect.Cluster.id, 'currentMode', daikinModeToAcMode(daikinMode), this.log);
+      } finally {
+        this.updatingFromCloud = false;
+      }
     } catch (err) {
       this.log.error(`[${md.name}] systemMode set failed: ${(err as Error).message}`);
+    }
+  }
+
+  private async handleAcModeChange(md: ManagedDevice, newMode: number) {
+    const { device, endpoint, managementPointId: mpId } = md;
+    const daikinMode = acModeToDaikin(newMode);
+    this.log.info(`[${md.name}] SET acMode=${newMode} -> daikin=${daikinMode}`);
+    try {
+      await device.setData(mpId, 'operationMode', undefined, daikinMode);
+      await device.setData(mpId, 'onOffMode', undefined, DAIKIN_ON);
+      // Reflect in Thermostat.systemMode for clients that read it.
+      let systemMode: number = Thermostat.SystemMode.Auto;
+      if (daikinMode === MODE_HEATING) systemMode = Thermostat.SystemMode.Heat;
+      else if (daikinMode === MODE_COOLING) systemMode = Thermostat.SystemMode.Cool;
+      else if (daikinMode === MODE_DRY) systemMode = Thermostat.SystemMode.Dry;
+      else if (daikinMode === MODE_FAN_ONLY) systemMode = Thermostat.SystemMode.FanOnly;
+      this.updatingFromCloud = true;
+      try {
+        await endpoint.updateAttribute(OnOff.Cluster.id, 'onOff', true, this.log);
+        await endpoint.updateAttribute(Thermostat.Cluster.id, 'systemMode', systemMode, this.log);
+      } finally {
+        this.updatingFromCloud = false;
+      }
+    } catch (err) {
+      this.log.error(`[${md.name}] acMode set failed: ${(err as Error).message}`);
     }
   }
 
