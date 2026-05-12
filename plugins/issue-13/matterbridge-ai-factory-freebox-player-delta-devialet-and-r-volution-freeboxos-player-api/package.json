@@ -1,6 +1,6 @@
 {
   "name": "matterbridge-ai-factory-freebox-player-delta-devialet-and-r-volution-freeboxos-player-api",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Matterbridge plugin for Freebox Player Delta (Devialet) and Revolution via FreeboxOS Player API",
   "author": "Matterbridge AI Factory",
   "license": "Apache-2.0",

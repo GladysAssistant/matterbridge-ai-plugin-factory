@@ -11,8 +11,10 @@
  * @license Apache-2.0
  */
 
-import { basicVideoPlayer, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, type PlatformConfig, type PlatformMatterbridge } from 'matterbridge';
+import { basicVideoPlayer, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, type PlatformConfig, type PlatformMatterbridge, speakerDevice } from 'matterbridge';
+import { MatterbridgeKeypadInputServer, MatterbridgeMediaPlaybackServer } from 'matterbridge/devices';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
+import { MediaPlayback } from 'matterbridge/matter/clusters';
 
 import { FreeboxClient, type FreeboxPlayer, tcpProbe } from './freebox.js';
 
@@ -286,7 +288,7 @@ export class FreeboxPlayerPlatform extends MatterbridgeDynamicPlatform {
     this.setSelectDevice(serial, name);
     if (!this.validateDevice([name, serial])) return;
 
-    const endpoint = new MatterbridgeEndpoint(basicVideoPlayer, { id: serial })
+    const endpoint = new MatterbridgeEndpoint([basicVideoPlayer, speakerDevice], { id: serial })
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         name,
         serial,
@@ -296,7 +298,22 @@ export class FreeboxPlayerPlatform extends MatterbridgeDynamicPlatform {
         1,
         String(this.config.appVersion ?? '1.0.0'),
       )
-      .addRequiredClusterServers();
+      .createDefaultOnOffClusterServer(false)
+      .createDefaultLevelControlClusterServer(1, 1, 254);
+
+    // MediaPlayback (play/pause/stop/next/previous) — Matterbridge-wrapped server forwards
+    // commands to the platform-level addCommandHandler dispatcher.
+    endpoint.behaviors.require(
+      MatterbridgeMediaPlaybackServer.enable({
+        commands: { play: true, pause: true, stop: true, next: true, previous: true },
+      }),
+      { currentState: MediaPlayback.PlaybackState.NotPlaying },
+    );
+
+    // KeypadInput (sendKey) — Matterbridge-wrapped to flow through addCommandHandler.
+    endpoint.behaviors.require(MatterbridgeKeypadInputServer, {});
+
+    endpoint.addRequiredClusterServers();
 
     // OnOff: we cannot truly turn the Freebox on, but we accept the command and
     // emulate via the toggle remote key (which wakes/sleeps the player from standby).
@@ -338,15 +355,18 @@ export class FreeboxPlayerPlatform extends MatterbridgeDynamicPlatform {
     return this.players.find((p) => p.serial === serial);
   }
 
-  /** Power handler — uses CEC PowerToggle remote-key (Freebox has no direct power API). */
+  /** Power handler — uses Freebox 'power' remote-key (toggles standby). */
   private async handlePower(serial: string, on: boolean): Promise<void> {
     const rt = this.find(serial);
-    if (!rt || !this.client) return;
+    if (!rt) return;
     this.log.info(`Power ${on ? 'ON' : 'OFF'} -> ${rt.name}`);
+    // Optimistically update Matter attribute so the UI reflects the new state immediately.
+    rt.lastPower = on;
+    await rt.endpoint.updateAttribute('OnOff', 'onOff', on).catch(() => undefined);
+    if (!this.client) return;
     try {
-      if (rt.lastPower !== on) {
-        await this.client.remoteKey(rt.player.id, rt.playerApiVersion, 'power');
-      }
+      // Only fire the toggle key when the target state differs from observed state.
+      await this.client.remoteKey(rt.player.id, rt.playerApiVersion, 'power');
     } catch (err) {
       this.log.warn(`power: ${(err as Error).message}`);
     }
@@ -354,7 +374,11 @@ export class FreeboxPlayerPlatform extends MatterbridgeDynamicPlatform {
 
   private async handleToggle(serial: string): Promise<void> {
     const rt = this.find(serial);
-    if (!rt || !this.client) return;
+    if (!rt) return;
+    const next = !rt.lastPower;
+    rt.lastPower = next;
+    await rt.endpoint.updateAttribute('OnOff', 'onOff', next).catch(() => undefined);
+    if (!this.client) return;
     try {
       await this.client.remoteKey(rt.player.id, rt.playerApiVersion, 'power');
     } catch (err) {
@@ -365,14 +389,17 @@ export class FreeboxPlayerPlatform extends MatterbridgeDynamicPlatform {
   /** Volume handler — Matter level is 0-254, Freebox volume is 0-100. */
   private async handleVolume(serial: string, data: unknown): Promise<void> {
     const rt = this.find(serial);
-    if (!rt || !this.client) return;
+    if (!rt) return;
     const req = (data as { request?: { level?: number } }).request;
     const level = Math.max(0, Math.min(254, Math.round(Number(req?.level ?? 0))));
     const volume = Math.round((level / 254) * 100);
     this.log.info(`Volume -> ${volume} (${rt.name})`);
+    // Optimistic Matter state update.
+    rt.lastVolume = volume;
+    await rt.endpoint.updateAttribute('LevelControl', 'currentLevel', level).catch(() => undefined);
+    if (!this.client) return;
     try {
       await this.client.setVolume(rt.player.id, rt.playerApiVersion, { volume });
-      rt.lastVolume = volume;
     } catch (err) {
       this.log.warn(`setVolume: ${(err as Error).message}`);
     }
