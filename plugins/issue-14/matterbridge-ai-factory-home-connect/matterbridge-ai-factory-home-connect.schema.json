@@ -19,20 +19,33 @@
     },
     "clientId": {
       "title": "Home Connect Client ID",
-      "description": "OAuth2 client ID from https://developer.home-connect.com/applications.",
+      "description": "OAuth2 Client ID from a Device Flow application created at https://developer.home-connect.com/applications.",
       "type": "string",
       "default": ""
     },
     "clientSecret": {
-      "title": "Home Connect Client Secret",
-      "description": "OAuth2 client secret from your Home Connect application.",
+      "title": "Home Connect Client Secret (optional)",
+      "description": "Only required for confidential clients. Leave empty for Device Flow public clients.",
       "type": "string",
       "default": "",
       "ui:widget": "password"
     },
+    "country": {
+      "title": "Server Location",
+      "description": "Use 'China' if you are located within China, otherwise 'Worldwide'.",
+      "type": "string",
+      "enum": ["Worldwide", "China"],
+      "default": "Worldwide"
+    },
+    "authorize": {
+      "title": "Authorize with Home Connect",
+      "description": "Enable and restart Matterbridge to start the Device Flow. The plugin will log a verification URL — open it, sign in, and approve. The refresh token is then saved automatically.",
+      "type": "boolean",
+      "default": false
+    },
     "refreshToken": {
       "title": "Refresh Token",
-      "description": "OAuth2 refresh token obtained from the Home Connect authorization code grant flow.",
+      "description": "Saved automatically after authorization. Clear this field and toggle 'Authorize' to re-authorize.",
       "type": "string",
       "default": "",
       "ui:widget": "password"

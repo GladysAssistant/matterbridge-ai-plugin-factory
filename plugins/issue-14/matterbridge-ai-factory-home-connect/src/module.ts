@@ -8,6 +8,11 @@
  *  - General operation state view (BSH.Common.Status.OperationState)
  *  - Active program view (BSH.Common.Root.ActiveProgram)
  *
+ * Authorization uses the OAuth 2.0 Device Authorization Grant (RFC 8628).
+ * Set `clientId` and (optionally) `country`, then enable `authorize` in the
+ * plugin config. The plugin logs a URL + user code; open it, approve access,
+ * and the refresh token is saved back into the plugin config automatically.
+ *
  * @file module.ts
  * @license Apache-2.0
  */
@@ -15,12 +20,21 @@
 import { contactSensor, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, onOffOutlet, PlatformConfig, PlatformMatterbridge } from 'matterbridge';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
 
-const HC_BASE = 'https://api.home-connect.com';
+type Country = 'Worldwide' | 'China';
+
+const HC_HOSTS: Record<Country, string> = {
+  Worldwide: 'https://api.home-connect.com',
+  China: 'https://api.home-connect.cn',
+};
+
+const HC_SCOPES = 'IdentifyAppliance Monitor Settings Control';
 
 interface HomeConnectConfig extends PlatformConfig {
   clientId?: string;
   clientSecret?: string;
   refreshToken?: string;
+  country?: Country;
+  authorize?: boolean;
   simulator?: boolean;
   pollIntervalSec?: number;
 }
@@ -47,6 +61,24 @@ interface ApplianceState {
   activeProgram: string;
 }
 
+interface DeviceAuthResponse {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete?: string;
+  expires_in: number;
+  interval: number;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  scope?: string;
+  id_token?: string;
+}
+
 export default function initializePlugin(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig): HomeConnectPlatform {
   return new HomeConnectPlatform(matterbridge, log, config);
 }
@@ -55,6 +87,7 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
   private accessToken: string | null = null;
   private accessTokenExpiry = 0;
   private pollTimer: NodeJS.Timeout | null = null;
+  private deviceFlowAbort: AbortController | null = null;
   private readonly endpoints = new Map<string, MatterbridgeEndpoint>();
   private readonly state = new Map<string, ApplianceState>();
   private readonly hcConfig: HomeConnectConfig;
@@ -67,7 +100,12 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
     }
 
     this.hcConfig = config as HomeConnectConfig;
+    if (!this.hcConfig.country) this.hcConfig.country = 'Worldwide';
     this.log.info('Initializing matterbridge-ai-factory-home-connect...');
+  }
+
+  private get hcBase(): string {
+    return HC_HOSTS[this.hcConfig.country ?? 'Worldwide'];
   }
 
   override async onStart(reason?: string): Promise<void> {
@@ -80,10 +118,23 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
       await this.discoverSimulator();
       return;
     }
-    if (!this.hcConfig.clientId || !this.hcConfig.clientSecret || !this.hcConfig.refreshToken) {
-      this.log.error('Home Connect credentials missing (clientId, clientSecret, refreshToken). Configure the plugin or enable simulator mode.');
+
+    if (!this.hcConfig.clientId) {
+      this.log.error('Home Connect "clientId" missing. Create a Device Flow application at https://developer.home-connect.com/applications and enter the Client ID in the plugin config.');
       return;
     }
+
+    if (this.hcConfig.authorize === true && !this.hcConfig.refreshToken) {
+      this.log.notice('Authorization requested - starting Device Flow. Watch the log for the verification URL.');
+      this.runDeviceFlow().catch((e) => this.log.error(`Device Flow failed: ${(e as Error).message}`));
+      return;
+    }
+
+    if (!this.hcConfig.refreshToken) {
+      this.log.error('Home Connect not authorized yet. Set "authorize": true in the plugin config (or enable simulator mode) and restart.');
+      return;
+    }
+
     try {
       await this.refreshAccessToken();
       await this.discoverAppliances();
@@ -125,28 +176,117 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+    if (this.deviceFlowAbort) {
+      this.deviceFlowAbort.abort();
+      this.deviceFlowAbort = null;
+    }
     if (this.config.unregisterOnShutdown) await this.unregisterAllDevices();
   }
 
   // ------------------------------------------------------------------
-  // OAuth2
+  // OAuth2 - Device Authorization Grant (RFC 8628)
   // ------------------------------------------------------------------
+
+  private async runDeviceFlow(): Promise<void> {
+    const clientId = this.hcConfig.clientId ?? '';
+    const body = new URLSearchParams({ client_id: clientId, scope: HC_SCOPES });
+
+    const res = await fetch(`${this.hcBase}/security/oauth/device_authorization`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    if (!res.ok) throw new Error(`device_authorization ${res.status}: ${await res.text()}`);
+    const auth = (await res.json()) as DeviceAuthResponse;
+
+    const url = auth.verification_uri_complete ?? `${auth.verification_uri}?user_code=${auth.user_code}`;
+    this.log.notice('================================================================');
+    this.log.notice('Home Connect authorization required.');
+    this.log.notice(`Open this URL in a browser and approve access:`);
+    this.log.notice(`  ${url}`);
+    this.log.notice(`User code: ${auth.user_code}`);
+    this.log.notice(`The plugin will poll for up to ${Math.round(auth.expires_in / 60)} minutes.`);
+    this.log.notice('================================================================');
+
+    this.deviceFlowAbort = new AbortController();
+    const token = await this.pollDeviceToken(auth, clientId, this.deviceFlowAbort.signal);
+    this.deviceFlowAbort = null;
+
+    this.accessToken = token.access_token;
+    this.accessTokenExpiry = Date.now() + (token.expires_in - 60) * 1000;
+    this.hcConfig.refreshToken = token.refresh_token;
+    this.hcConfig.authorize = false;
+    this.saveConfig(this.hcConfig);
+    this.log.notice('Home Connect authorization complete - refresh token saved. Discovering appliances...');
+
+    try {
+      await this.discoverAppliances();
+    } catch (e) {
+      this.log.error(`Failed to discover appliances after authorization: ${(e as Error).message}`);
+    }
+  }
+
+  private async pollDeviceToken(auth: DeviceAuthResponse, clientId: string, signal: AbortSignal): Promise<TokenResponse> {
+    const deadline = Date.now() + auth.expires_in * 1000;
+    let interval = Math.max(5, auth.interval || 5) * 1000;
+
+    while (Date.now() < deadline) {
+      if (signal.aborted) throw new Error('aborted');
+      await delay(interval, signal);
+
+      const body = new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        device_code: auth.device_code,
+        client_id: clientId,
+      });
+      if (this.hcConfig.clientSecret) body.set('client_secret', this.hcConfig.clientSecret);
+
+      const res = await fetch(`${this.hcBase}/security/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      });
+      const text = await res.text();
+      let json: { error?: string; error_description?: string } & Partial<TokenResponse>;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(`token poll ${res.status}: ${text}`);
+      }
+      if (res.ok && json.access_token && json.refresh_token) return json as TokenResponse;
+      const err = json.error ?? `http_${res.status}`;
+      if (err === 'authorization_pending') continue;
+      if (err === 'slow_down') {
+        interval += 5000;
+        continue;
+      }
+      if (err === 'expired_token' || err === 'access_denied') throw new Error(`Authorization ${err}.`);
+      throw new Error(`token poll error: ${err}: ${json.error_description ?? ''}`);
+    }
+    throw new Error('Device Flow expired before approval.');
+  }
 
   private async refreshAccessToken(): Promise<void> {
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: this.hcConfig.refreshToken ?? '',
-      client_secret: this.hcConfig.clientSecret ?? '',
+      client_id: this.hcConfig.clientId ?? '',
     });
-    const res = await fetch(`${HC_BASE}/security/oauth/token`, {
+    if (this.hcConfig.clientSecret) body.set('client_secret', this.hcConfig.clientSecret);
+
+    const res = await fetch(`${this.hcBase}/security/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     });
     if (!res.ok) throw new Error(`token refresh ${res.status}: ${await res.text()}`);
-    const j = (await res.json()) as { access_token: string; expires_in: number; refresh_token?: string };
+    const j = (await res.json()) as TokenResponse;
     this.accessToken = j.access_token;
     this.accessTokenExpiry = Date.now() + (j.expires_in - 60) * 1000;
+    if (j.refresh_token && j.refresh_token !== this.hcConfig.refreshToken) {
+      this.hcConfig.refreshToken = j.refresh_token;
+      this.saveConfig(this.hcConfig);
+    }
     this.log.debug('Home Connect access token refreshed.');
   }
 
@@ -157,7 +297,7 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
 
   private async hcGet<T>(path: string): Promise<T> {
     const token = await this.ensureToken();
-    const res = await fetch(`${HC_BASE}${path}`, {
+    const res = await fetch(`${this.hcBase}${path}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.bsh.sdk.v1+json' },
     });
     if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
@@ -166,7 +306,7 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
 
   private async hcPut(path: string, data: unknown): Promise<void> {
     const token = await this.ensureToken();
-    const res = await fetch(`${HC_BASE}${path}`, {
+    const res = await fetch(`${this.hcBase}${path}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -367,4 +507,18 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
 function shortKey(k: string): string {
   const i = k.lastIndexOf('.');
   return i >= 0 ? k.slice(i + 1) : k;
+}
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(t);
+      reject(new Error('aborted'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
