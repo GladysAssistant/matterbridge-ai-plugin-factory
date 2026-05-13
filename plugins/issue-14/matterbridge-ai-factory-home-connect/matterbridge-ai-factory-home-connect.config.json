@@ -1,0 +1,13 @@
+{
+  "name": "matterbridge-ai-factory-home-connect",
+  "type": "DynamicPlatform",
+  "clientId": "",
+  "clientSecret": "",
+  "refreshToken": "",
+  "simulator": true,
+  "pollIntervalSec": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

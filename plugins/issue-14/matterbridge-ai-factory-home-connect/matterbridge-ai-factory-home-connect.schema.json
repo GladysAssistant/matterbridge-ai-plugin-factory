@@ -1,0 +1,80 @@
+{
+  "title": "Matterbridge Home Connect plugin",
+  "description": "matterbridge-ai-factory-home-connect plugin configuration",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "clientId": {
+      "title": "Home Connect Client ID",
+      "description": "OAuth2 client ID from https://developer.home-connect.com/applications.",
+      "type": "string",
+      "default": ""
+    },
+    "clientSecret": {
+      "title": "Home Connect Client Secret",
+      "description": "OAuth2 client secret from your Home Connect application.",
+      "type": "string",
+      "default": "",
+      "ui:widget": "password"
+    },
+    "refreshToken": {
+      "title": "Refresh Token",
+      "description": "OAuth2 refresh token obtained from the Home Connect authorization code grant flow.",
+      "type": "string",
+      "default": "",
+      "ui:widget": "password"
+    },
+    "simulator": {
+      "title": "Simulator Mode",
+      "description": "Skip the Home Connect cloud API and expose a single demo appliance.",
+      "type": "boolean",
+      "default": true
+    },
+    "pollIntervalSec": {
+      "title": "Poll Interval (seconds)",
+      "description": "Polling interval for status updates. Minimum 15 seconds.",
+      "type": "number",
+      "default": 60,
+      "minimum": 15
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only appliances in the list will be exposed (match on name or haId).",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "Appliances in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
