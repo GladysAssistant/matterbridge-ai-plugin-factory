@@ -41,7 +41,7 @@
       "title": "Simulator Mode",
       "description": "Skip the Home Connect cloud API and expose a single demo appliance.",
       "type": "boolean",
-      "default": true
+      "default": false
     },
     "pollIntervalSec": {
       "title": "Poll Interval (seconds)",

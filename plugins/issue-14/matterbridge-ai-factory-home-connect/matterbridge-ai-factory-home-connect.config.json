@@ -4,7 +4,7 @@
   "clientId": "",
   "clientSecret": "",
   "refreshToken": "",
-  "simulator": true,
+  "simulator": false,
   "pollIntervalSec": 60,
   "whiteList": [],
   "blackList": [],

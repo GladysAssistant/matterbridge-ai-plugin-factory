@@ -75,18 +75,20 @@ export class HomeConnectPlatform extends MatterbridgeDynamicPlatform {
     await this.ready;
     await this.clearSelect();
 
-    const useSimulator = this.hcConfig.simulator === true || !this.hcConfig.clientId || !this.hcConfig.clientSecret || !this.hcConfig.refreshToken;
-    if (useSimulator) {
-      this.log.notice('Home Connect credentials missing or simulator enabled - running in simulator mode.');
+    if (this.hcConfig.simulator === true) {
+      this.log.notice('Simulator mode enabled - exposing demo appliance.');
       await this.discoverSimulator();
-    } else {
-      try {
-        await this.refreshAccessToken();
-        await this.discoverAppliances();
-      } catch (e) {
-        this.log.error(`Failed to discover appliances from Home Connect: ${(e as Error).message}. Falling back to simulator.`);
-        await this.discoverSimulator();
-      }
+      return;
+    }
+    if (!this.hcConfig.clientId || !this.hcConfig.clientSecret || !this.hcConfig.refreshToken) {
+      this.log.error('Home Connect credentials missing (clientId, clientSecret, refreshToken). Configure the plugin or enable simulator mode.');
+      return;
+    }
+    try {
+      await this.refreshAccessToken();
+      await this.discoverAppliances();
+    } catch (e) {
+      this.log.error(`Failed to discover appliances from Home Connect: ${(e as Error).message}`);
     }
   }
 
