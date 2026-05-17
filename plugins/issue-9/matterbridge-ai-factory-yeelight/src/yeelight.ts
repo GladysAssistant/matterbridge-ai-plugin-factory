@@ -42,6 +42,7 @@ export class YeelightClient extends EventEmitter<YeelightClientEvents> {
   private socket?: Socket;
   private buffer = '';
   private messageId = 1;
+  private pendingGetProp = new Set<number>();
   private reconnectTimer?: NodeJS.Timeout;
   private closed = false;
   private connected = false;
@@ -67,7 +68,7 @@ export class YeelightClient extends EventEmitter<YeelightClientEvents> {
       this.connected = true;
       this.emit('connect');
       // Ask for current state after connection.
-      void this.send('get_prop', ['power', 'bright', 'ct', 'rgb', 'hue', 'sat', 'color_mode']).catch(() => {});
+      void this.requestState().catch(() => {});
     });
 
     s.on('data', (chunk) => this.onData(chunk));
@@ -139,8 +140,12 @@ export class YeelightClient extends EventEmitter<YeelightClientEvents> {
       this.emit('update', update);
       return;
     }
-    // Responses to get_prop: { id, result: [...] }
-    if (typeof msg.id === 'number' && Array.isArray(msg.result)) {
+    // Responses to get_prop: { id, result: [...] }.
+    // Command acks also carry { id, result: ["ok"] }; only treat the
+    // response as a state snapshot when it matches a get_prop request,
+    // otherwise the "ok" ack is misread as power:false + NaN levels.
+    if (typeof msg.id === 'number' && this.pendingGetProp.has(msg.id) && Array.isArray(msg.result)) {
+      this.pendingGetProp.delete(msg.id);
       const r = msg.result as string[];
       // We issue the same fixed property list on connect.
       const update: Partial<YeelightState> = {
@@ -166,6 +171,12 @@ export class YeelightClient extends EventEmitter<YeelightClientEvents> {
       const payload = JSON.stringify({ id: this.messageId++, method, params }) + '\r\n';
       this.socket.write(payload, (err) => (err ? reject(err) : resolve()));
     });
+  }
+
+  /** Request a full state snapshot via get_prop, tracking its message id. */
+  requestState(): Promise<void> {
+    this.pendingGetProp.add(this.messageId);
+    return this.send('get_prop', ['power', 'bright', 'ct', 'rgb', 'hue', 'sat', 'color_mode']);
   }
 
   /** Turn the light on or off with a smooth transition. */
