@@ -197,38 +197,51 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private wireStateUpdates(endpoint: MatterbridgeEndpoint, client: YeelightClient, model: 'color' | 'ct' | 'mono'): void {
-    // Apply the updates sequentially. Each updateAttribute() runs in its own
-    // setStateOf transaction; firing them all in parallel with `void` opens
-    // several competing transactions that wait on each other and never settle
+    // Yeelight emits several separate `props` notifications per change (and a
+    // get_prop snapshot on connect). Each `update` event used to spawn its own
+    // detached async task, so multiple updateAttribute() -> setStateOf
+    // transactions ran concurrently on the SAME endpoint. Matter.js queues them
+    // ("Tx waiting on ...") and the contention trips the unsettled-state guard
     // ("State has not settled after 5 pre-commit cycles"), which rolls back the
-    // OnOff write so the UI snaps back to OFF. Awaiting them in order keeps the
-    // status confirmation (including the ON state) from being dropped.
+    // OnOff write and snaps the UI back to OFF, dropping the ON confirmation.
+    //
+    // Serialize every update through a single promise chain so only one
+    // setStateOf transaction is ever in flight, and skip redundant writes so an
+    // unchanged value never opens a transaction at all.
+    let queue: Promise<void> = Promise.resolve();
+
+    const writeIfChanged = async (cluster: string, attribute: string, value: number | boolean): Promise<void> => {
+      const current = endpoint.getAttribute(cluster, attribute);
+      if (current === value) return;
+      await endpoint.updateAttribute(cluster, attribute, value);
+    };
+
     client.on('update', (state: Partial<YeelightState>) => {
-      void (async (): Promise<void> => {
-        try {
+      queue = queue
+        .then(async () => {
           if (state.power !== undefined) {
-            await endpoint.updateAttribute('OnOff', 'onOff', state.power);
+            await writeIfChanged('OnOff', 'onOff', state.power);
           }
           if (state.bright !== undefined && (model === 'mono' || model === 'ct' || model === 'color')) {
             const level = Math.max(1, Math.min(254, Math.round((state.bright / 100) * 254)));
-            await endpoint.updateAttribute('LevelControl', 'currentLevel', level);
+            await writeIfChanged('LevelControl', 'currentLevel', level);
           }
           if (state.ct !== undefined && (model === 'ct' || model === 'color')) {
             const mireds = Math.max(1, Math.round(1_000_000 / state.ct));
-            await endpoint.updateAttribute('ColorControl', 'colorTemperatureMireds', mireds);
+            await writeIfChanged('ColorControl', 'colorTemperatureMireds', mireds);
           }
           if (model === 'color') {
             if (state.hue !== undefined) {
-              await endpoint.updateAttribute('ColorControl', 'currentHue', Math.round((state.hue / 359) * 254));
+              await writeIfChanged('ColorControl', 'currentHue', Math.round((state.hue / 359) * 254));
             }
             if (state.sat !== undefined) {
-              await endpoint.updateAttribute('ColorControl', 'currentSaturation', Math.round((state.sat / 100) * 254));
+              await writeIfChanged('ColorControl', 'currentSaturation', Math.round((state.sat / 100) * 254));
             }
           }
-        } catch (e) {
+        })
+        .catch((e: unknown) => {
           this.log.warn(`State update failed: ${(e as Error).message}`);
-        }
-      })();
+        });
     });
   }
 }
