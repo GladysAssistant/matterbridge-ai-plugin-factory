@@ -197,26 +197,38 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private wireStateUpdates(endpoint: MatterbridgeEndpoint, client: YeelightClient, model: 'color' | 'ct' | 'mono'): void {
+    // Apply the updates sequentially. Each updateAttribute() runs in its own
+    // setStateOf transaction; firing them all in parallel with `void` opens
+    // several competing transactions that wait on each other and never settle
+    // ("State has not settled after 5 pre-commit cycles"), which rolls back the
+    // OnOff write so the UI snaps back to OFF. Awaiting them in order keeps the
+    // status confirmation (including the ON state) from being dropped.
     client.on('update', (state: Partial<YeelightState>) => {
-      if (state.power !== undefined) {
-        void endpoint.updateAttribute('OnOff', 'onOff', state.power);
-      }
-      if (state.bright !== undefined && (model === 'mono' || model === 'ct' || model === 'color')) {
-        const level = Math.max(1, Math.min(254, Math.round((state.bright / 100) * 254)));
-        void endpoint.updateAttribute('LevelControl', 'currentLevel', level);
-      }
-      if (state.ct !== undefined && (model === 'ct' || model === 'color')) {
-        const mireds = Math.max(1, Math.round(1_000_000 / state.ct));
-        void endpoint.updateAttribute('ColorControl', 'colorTemperatureMireds', mireds);
-      }
-      if (model === 'color') {
-        if (state.hue !== undefined) {
-          void endpoint.updateAttribute('ColorControl', 'currentHue', Math.round((state.hue / 359) * 254));
+      void (async (): Promise<void> => {
+        try {
+          if (state.power !== undefined) {
+            await endpoint.updateAttribute('OnOff', 'onOff', state.power);
+          }
+          if (state.bright !== undefined && (model === 'mono' || model === 'ct' || model === 'color')) {
+            const level = Math.max(1, Math.min(254, Math.round((state.bright / 100) * 254)));
+            await endpoint.updateAttribute('LevelControl', 'currentLevel', level);
+          }
+          if (state.ct !== undefined && (model === 'ct' || model === 'color')) {
+            const mireds = Math.max(1, Math.round(1_000_000 / state.ct));
+            await endpoint.updateAttribute('ColorControl', 'colorTemperatureMireds', mireds);
+          }
+          if (model === 'color') {
+            if (state.hue !== undefined) {
+              await endpoint.updateAttribute('ColorControl', 'currentHue', Math.round((state.hue / 359) * 254));
+            }
+            if (state.sat !== undefined) {
+              await endpoint.updateAttribute('ColorControl', 'currentSaturation', Math.round((state.sat / 100) * 254));
+            }
+          }
+        } catch (e) {
+          this.log.warn(`State update failed: ${(e as Error).message}`);
         }
-        if (state.sat !== undefined) {
-          void endpoint.updateAttribute('ColorControl', 'currentSaturation', Math.round((state.sat / 100) * 254));
-        }
-      }
+      })();
     });
   }
 }
