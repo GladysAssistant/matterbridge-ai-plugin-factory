@@ -124,13 +124,17 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private wireCommands(endpoint: MatterbridgeEndpoint, client: YeelightClient, model: 'color' | 'ct' | 'mono'): void {
+    // Do not call endpoint.updateAttribute('OnOff', ...) here: the Matter `on`/`off`
+    // commands already commit the OnOff attribute within the active transaction, and
+    // re-writing it from inside the handler re-enters that transaction, triggering the
+    // "State has not settled after 5 pre-commit cycles" infinite loop. The real device
+    // state is confirmed asynchronously via the Yeelight `props` notification in
+    // wireStateUpdates().
     endpoint.addCommandHandler('on', async () => {
       await client.setPower(true).catch((e: Error) => this.log.warn(`on failed: ${e.message}`));
-      await endpoint.updateAttribute('OnOff', 'onOff', true);
     });
     endpoint.addCommandHandler('off', async () => {
       await client.setPower(false).catch((e: Error) => this.log.warn(`off failed: ${e.message}`));
-      await endpoint.updateAttribute('OnOff', 'onOff', false);
     });
     endpoint.addCommandHandler('toggle', async () => {
       await client.send('toggle', []).catch((e: Error) => this.log.warn(`toggle failed: ${e.message}`));
