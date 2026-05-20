@@ -43,6 +43,16 @@ export default function initializePlugin(matterbridge: PlatformMatterbridge, log
 export class YeelightPlatform extends MatterbridgeDynamicPlatform {
   private readonly clients = new Map<string, YeelightClient>();
   private readonly endpoints = new Map<string, MatterbridgeEndpoint>();
+  /**
+   * Per-endpoint suppression map: cluster.attribute -> { value, expiresAt }.
+   * When a Matter command optimistically commits a value (e.g. OnOff=true via
+   * the built-in OnOff.on handler), the Yeelight device echoes the change back
+   * a few ms later as a `props` notification. Writing that echoed value via
+   * `updateAttribute` while Matter's command transaction is still in pre-commit
+   * trips the "State has not settled after 5 pre-commit cycles" guard and rolls
+   * back the OnOff write. Suppressing the echo for a short window prevents that.
+   */
+  private readonly suppress = new Map<string, Map<string, { value: unknown; expiresAt: number }>>();
 
   constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
     super(matterbridge, log, config);
@@ -93,6 +103,7 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
     for (const client of this.clients.values()) client.close();
     this.clients.clear();
     this.endpoints.clear();
+    this.suppress.clear();
     if (this.config.unregisterOnShutdown === true) await this.unregisterAllDevices();
   }
 
@@ -124,20 +135,52 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private wireCommands(endpoint: MatterbridgeEndpoint, client: YeelightClient, model: 'color' | 'ct' | 'mono'): void {
+    const serial = endpoint.originalId ?? endpoint.id ?? '';
+
     // Do not call endpoint.updateAttribute('OnOff', ...) here: the Matter `on`/`off`
     // commands already commit the OnOff attribute within the active transaction, and
     // re-writing it from inside the handler re-enters that transaction, triggering the
-    // "State has not settled after 5 pre-commit cycles" infinite loop. The real device
-    // state is confirmed asynchronously via the Yeelight `props` notification in
-    // wireStateUpdates().
+    // "State has not settled after 5 pre-commit cycles" infinite loop.
+    //
+    // Instead, register an echo suppression entry so the inbound Yeelight `props`
+    // notification (which arrives ~100ms later and re-asserts the same value) does
+    // NOT open a competing setStateOf transaction on the same attribute while
+    // Matter's command transaction is still in pre-commit. That competition is the
+    // root cause of the rollback that snaps the UI back to OFF.
+    //
+    // Throw on transport failure so Matter rolls back the OnOff state and the UI
+    // reflects the real device state instead of silently confirming an "ON" that
+    // never reached the bulb.
     endpoint.addCommandHandler('on', async () => {
-      await client.setPower(true).catch((e: Error) => this.log.warn(`on failed: ${e.message}`));
+      this.suppressEcho(serial, 'OnOff', 'onOff', true);
+      try {
+        await client.setPower(true);
+      } catch (e) {
+        this.clearEcho(serial, 'OnOff', 'onOff');
+        const msg = (e as Error).message;
+        this.log.warn(`on failed: ${msg}`);
+        throw e;
+      }
     });
     endpoint.addCommandHandler('off', async () => {
-      await client.setPower(false).catch((e: Error) => this.log.warn(`off failed: ${e.message}`));
+      this.suppressEcho(serial, 'OnOff', 'onOff', false);
+      try {
+        await client.setPower(false);
+      } catch (e) {
+        this.clearEcho(serial, 'OnOff', 'onOff');
+        const msg = (e as Error).message;
+        this.log.warn(`off failed: ${msg}`);
+        throw e;
+      }
     });
     endpoint.addCommandHandler('toggle', async () => {
-      await client.send('toggle', []).catch((e: Error) => this.log.warn(`toggle failed: ${e.message}`));
+      try {
+        await client.send('toggle', []);
+      } catch (e) {
+        const msg = (e as Error).message;
+        this.log.warn(`toggle failed: ${msg}`);
+        throw e;
+      }
     });
 
     if (model === 'mono' || model === 'ct' || model === 'color') {
@@ -207,10 +250,14 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
     //
     // Serialize every update through a single promise chain so only one
     // setStateOf transaction is ever in flight, and skip redundant writes so an
-    // unchanged value never opens a transaction at all.
+    // unchanged value never opens a transaction at all. Also yield to the event
+    // loop before opening a transaction so any in-flight Matter command Tx on
+    // the same endpoint can settle first.
+    const serial = endpoint.originalId ?? endpoint.id ?? '';
     let queue: Promise<void> = Promise.resolve();
 
     const writeIfChanged = async (cluster: string, attribute: string, value: number | boolean): Promise<void> => {
+      if (this.consumeEcho(serial, cluster, attribute, value)) return;
       const current = endpoint.getAttribute(cluster, attribute);
       if (current === value) return;
       await endpoint.updateAttribute(cluster, attribute, value);
@@ -219,6 +266,10 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
     client.on('update', (state: Partial<YeelightState>) => {
       queue = queue
         .then(async () => {
+          // Yield so any in-flight Matter command transaction on this endpoint
+          // (e.g. the OnOff.on Tx that just kicked off the bulb command) gets a
+          // chance to commit before we open a new setStateOf transaction here.
+          await new Promise<void>((r) => setTimeout(r, 50));
           if (state.power !== undefined) {
             await writeIfChanged('OnOff', 'onOff', state.power);
           }
@@ -243,5 +294,64 @@ export class YeelightPlatform extends MatterbridgeDynamicPlatform {
           this.log.warn(`State update failed: ${(e as Error).message}`);
         });
     });
+  }
+
+  /**
+   * Register an expected echo from the Yeelight device so the inbound `props`
+   * notification does not re-write the same attribute that Matter has just
+   * committed in its own transaction. The window must outlive the round-trip
+   * to the bulb but stay short enough that a real external change (e.g. via
+   * the Yeelight app) is still propagated.
+   *
+   * @param serial Endpoint storage key.
+   * @param cluster Cluster name (e.g. "OnOff").
+   * @param attribute Attribute name (e.g. "onOff").
+   * @param value Value the echo is expected to carry.
+   */
+  private suppressEcho(serial: string, cluster: string, attribute: string, value: unknown): void {
+    let perEndpoint = this.suppress.get(serial);
+    if (!perEndpoint) {
+      perEndpoint = new Map();
+      this.suppress.set(serial, perEndpoint);
+    }
+    perEndpoint.set(`${cluster}.${attribute}`, { value, expiresAt: Date.now() + 1500 });
+  }
+
+  /**
+   * Drop a previously-registered echo suppression (used when the matter command
+   * failed before it reached the bulb so the next prop notification really does
+   * carry the authoritative state).
+   *
+   * @param serial Endpoint storage key.
+   * @param cluster Cluster name.
+   * @param attribute Attribute name.
+   */
+  private clearEcho(serial: string, cluster: string, attribute: string): void {
+    this.suppress.get(serial)?.delete(`${cluster}.${attribute}`);
+  }
+
+  /**
+   * Check whether an inbound props value matches a pending suppression entry
+   * (and remove it if so). Expired entries are pruned lazily.
+   *
+   * @param serial Endpoint storage key.
+   * @param cluster Cluster name.
+   * @param attribute Attribute name.
+   * @param value Value carried by the inbound props notification.
+   * @returns true when the caller should skip writing this value.
+   */
+  private consumeEcho(serial: string, cluster: string, attribute: string, value: unknown): boolean {
+    const perEndpoint = this.suppress.get(serial);
+    if (!perEndpoint) return false;
+    const key = `${cluster}.${attribute}`;
+    const entry = perEndpoint.get(key);
+    if (!entry) return false;
+    if (entry.expiresAt < Date.now()) {
+      perEndpoint.delete(key);
+      return false;
+    }
+    if (entry.value !== value) return false;
+    perEndpoint.delete(key);
+    return true;
   }
 }
