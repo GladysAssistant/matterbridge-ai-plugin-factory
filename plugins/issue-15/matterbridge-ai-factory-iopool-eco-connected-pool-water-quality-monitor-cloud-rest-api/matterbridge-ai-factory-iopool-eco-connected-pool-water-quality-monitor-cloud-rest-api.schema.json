@@ -1,0 +1,73 @@
+{
+  "title": "Matterbridge iopool EcO pool water quality monitor",
+  "description": "matterbridge-ai-factory-iopool-eco-connected-pool-water-quality-monitor-cloud-rest-api v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "apiKey": {
+      "title": "iopool API Key",
+      "description": "Your iopool public API key (from the iopool mobile app).",
+      "type": "string"
+    },
+    "pollingIntervalSeconds": {
+      "title": "Polling Interval (seconds)",
+      "description": "How often to poll the iopool cloud API. Default 300s (5 minutes).",
+      "type": "number",
+      "default": 300
+    },
+    "poolIds": {
+      "title": "Pool ID Allow-List",
+      "description": "Only expose these pool IDs. Leave empty to expose all pools on the account.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

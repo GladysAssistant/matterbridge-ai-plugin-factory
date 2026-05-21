@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-iopool-eco-connected-pool-water-quality-monitor-cloud-rest-api",
+  "type": "DynamicPlatform",
+  "apiKey": "",
+  "pollingIntervalSeconds": 300,
+  "poolIds": [],
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
