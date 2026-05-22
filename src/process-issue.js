@@ -393,9 +393,10 @@ function resolveClaudeBinary() {
   // 2. Try common install locations
   const home = process.env.HOME || "";
   const candidates = [
+    `${home}/.local/share/claude/versions/*/bin/claude`, // binaire natif versioned
+    `${home}/.local/bin/claude`, // symlink natif  ← déjà présent ✓
     `${home}/.nvm/versions/node/*/bin/claude`,
     `${home}/.npm-global/bin/claude`,
-    `${home}/.local/bin/claude`,
     "/usr/local/bin/claude",
     "/usr/bin/claude",
     "/opt/homebrew/bin/claude",
