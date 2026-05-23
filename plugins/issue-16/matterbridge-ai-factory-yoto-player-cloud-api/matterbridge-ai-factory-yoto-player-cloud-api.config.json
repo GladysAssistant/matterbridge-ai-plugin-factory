@@ -1,0 +1,14 @@
+{
+  "name": "matterbridge-ai-factory-yoto-player-cloud-api",
+  "type": "DynamicPlatform",
+  "clientId": "matterbridge-yoto",
+  "accessToken": "",
+  "refreshToken": "",
+  "tokenExpiresAt": 0,
+  "pollingIntervalSeconds": 30,
+  "useMqtt": true,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

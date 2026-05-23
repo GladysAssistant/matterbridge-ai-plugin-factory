@@ -1,0 +1,84 @@
+{
+  "title": "Yoto Player (Cloud API)",
+  "description": "Bridges Yoto Players to Matter via the Yoto cloud API. Authenticates with OAuth2 device flow; check plugin logs for the user_code and visit https://api.yotoplay.com/device/auth to authorize.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "clientId": {
+      "title": "OAuth Client ID",
+      "description": "OAuth2 client id used with the Yoto API.",
+      "type": "string",
+      "default": "matterbridge-yoto"
+    },
+    "accessToken": {
+      "title": "Access Token",
+      "description": "Yoto OAuth access token (managed automatically after first authorization).",
+      "type": "string"
+    },
+    "refreshToken": {
+      "title": "Refresh Token",
+      "description": "Yoto OAuth refresh token (managed automatically after first authorization).",
+      "type": "string"
+    },
+    "tokenExpiresAt": {
+      "title": "Token Expiry (epoch ms)",
+      "description": "When the current access token expires (managed automatically).",
+      "type": "number",
+      "default": 0
+    },
+    "pollingIntervalSeconds": {
+      "title": "Polling Interval (s)",
+      "description": "How often to poll device status when MQTT is unavailable.",
+      "type": "number",
+      "default": 30,
+      "minimum": 10
+    },
+    "useMqtt": {
+      "title": "Use MQTT",
+      "description": "Enable MQTT for real-time state updates (recommended). Falls back to polling if disabled or unavailable.",
+      "type": "boolean",
+      "default": true
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the players in the list (by name) will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "Players in the list (by name) will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown (debug only).",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
