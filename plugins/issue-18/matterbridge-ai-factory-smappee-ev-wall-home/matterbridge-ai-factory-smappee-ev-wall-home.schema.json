@@ -1,0 +1,83 @@
+{
+  "title": "Matterbridge Smappee EV Wall Home",
+  "description": "matterbridge-ai-factory-smappee-ev-wall-home by https://github.com/Luligu",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "clientId": {
+      "title": "Client ID",
+      "description": "Smappee Developer API OAuth2 client id",
+      "type": "string"
+    },
+    "clientSecret": {
+      "title": "Client Secret",
+      "description": "Smappee Developer API OAuth2 client secret",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "username": {
+      "title": "Username",
+      "description": "Smappee account username (email)",
+      "type": "string"
+    },
+    "password": {
+      "title": "Password",
+      "description": "Smappee account password",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "serviceLocationId": {
+      "title": "Service Location ID",
+      "description": "Optional Smappee service location id. Leave 0 to use the first one.",
+      "type": "number",
+      "default": 0
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to refresh consumption data (minimum 60).",
+      "type": "number",
+      "default": 300
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

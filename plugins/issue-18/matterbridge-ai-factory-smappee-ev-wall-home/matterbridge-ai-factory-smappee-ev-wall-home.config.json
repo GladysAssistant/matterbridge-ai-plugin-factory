@@ -1,0 +1,14 @@
+{
+  "name": "matterbridge-ai-factory-smappee-ev-wall-home",
+  "type": "DynamicPlatform",
+  "clientId": "",
+  "clientSecret": "",
+  "username": "",
+  "password": "",
+  "serviceLocationId": 0,
+  "pollInterval": 300,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
