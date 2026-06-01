@@ -2,8 +2,9 @@
  * Matterbridge plugin for Smappee EV Wall Home.
  *
  * Exposes Smappee actuators (Comfort Plug / Output module / Switch) as on/off outlets and
- * Smappee switches/sensors/electricity meters as electrical sensors using the Smappee
- * Developer API v3.
+ * the Smappee energy data (House consumption, EV Wall charging, Solar production) as Matter
+ * electrical sensors using the ElectricalPowerMeasurement and ElectricalEnergyMeasurement
+ * clusters via the Smappee Developer API v3.
  *
  * @file module.ts
  * @license Apache-2.0
@@ -12,7 +13,7 @@
 import { electricalSensor, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, onOffOutlet, PlatformConfig, PlatformMatterbridge } from 'matterbridge';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
 
-import { SmappeeApi, SmappeeMeteringConfiguration } from './smappee.js';
+import { SmappeeApi, SmappeeConsumptionRecord, SmappeeMeteringConfiguration } from './smappee.js';
 
 /**
  * Standard Matterbridge plugin entry point.
@@ -26,10 +27,16 @@ export default function initializePlugin(matterbridge: PlatformMatterbridge, log
   return new SmappeePlatform(matterbridge, log, config);
 }
 
-interface MeterEndpoint {
+/** Energy meter role exposed as a distinct Matter endpoint. */
+type MeterRole = 'house' | 'ev' | 'solar';
+
+interface EnergyMeter {
   endpoint: MatterbridgeEndpoint;
-  kind: 'electricity' | 'switch' | 'sensor';
-  id: number;
+  role: MeterRole;
+  /** Whether this meter reports produced energy (solar) instead of consumed energy. */
+  exported: boolean;
+  /** Accumulated energy in watt-hours. */
+  cumulativeWh: number;
 }
 
 /** Smappee dynamic platform. */
@@ -38,7 +45,7 @@ export class SmappeePlatform extends MatterbridgeDynamicPlatform {
   private serviceLocationId = 0;
   private metering?: SmappeeMeteringConfiguration;
   private pollTimer?: NodeJS.Timeout;
-  private readonly meters: MeterEndpoint[] = [];
+  private readonly meters: EnergyMeter[] = [];
 
   constructor(matterbridge: PlatformMatterbridge, log: AnsiLogger, config: PlatformConfig) {
     super(matterbridge, log, config);
@@ -85,7 +92,7 @@ export class SmappeePlatform extends MatterbridgeDynamicPlatform {
   }
 
   private async createDevices(metering: SmappeeMeteringConfiguration): Promise<void> {
-    // Actuators -> on/off outlets with command handlers.
+    // Actuators -> on/off outlets with command handlers (control, not energy reporting).
     for (const actuator of metering.actuators) {
       const serial = actuator.serialNumber ?? `smappee-actuator-${actuator.id}`;
       const name = actuator.name || `Smappee Actuator ${actuator.id}`;
@@ -105,31 +112,34 @@ export class SmappeePlatform extends MatterbridgeDynamicPlatform {
       await this.registerDevice(outlet);
     }
 
-    // Switch consumption meters.
-    for (const measurement of metering.measurements) {
-      await this.createMeter('switch', measurement.id, measurement.name || `Smappee Switch ${measurement.id}`, `smappee-switch-${measurement.id}`);
-    }
-
-    // Sensor consumption meters.
-    for (const sensor of metering.sensors) {
-      await this.createMeter('sensor', sensor.id, sensor.name || `Smappee Sensor ${sensor.id}`, `smappee-sensor-${sensor.id}`);
-    }
-
-    // Overall electricity consumption meter for the service location.
-    await this.createMeter('electricity', this.serviceLocationId, `${metering.name} Electricity`, `smappee-electricity-${this.serviceLocationId}`);
+    // Energy meters -> distinct electrical sensors using the measurement clusters.
+    await this.createMeter('house', `${metering.name} House Consumption`, `smappee-house-${this.serviceLocationId}`, false);
+    await this.createMeter('ev', `${metering.name} EV Wall Charging`, `smappee-ev-${this.serviceLocationId}`, false);
+    await this.createMeter('solar', `${metering.name} Solar Production`, `smappee-solar-${this.serviceLocationId}`, true);
   }
 
-  private async createMeter(kind: MeterEndpoint['kind'], id: number, name: string, serial: string): Promise<void> {
+  /**
+   * Create an electrical sensor endpoint exposing power and energy measurement clusters.
+   *
+   * @param {MeterRole} role - The Smappee energy channel this endpoint represents.
+   * @param {string} name - The human readable device name.
+   * @param {string} serial - The unique serial number for the bridged device.
+   * @param {boolean} exported - True for produced energy (solar), false for consumed energy.
+   * @returns {Promise<void>} Resolves once the device is registered.
+   */
+  private async createMeter(role: MeterRole, name: string, serial: string, exported: boolean): Promise<void> {
     this.setSelectDevice(serial, name);
     if (!this.validateDevice([name, serial])) return;
 
-    const endpoint = new MatterbridgeEndpoint(electricalSensor, { id: `${kind}-${id}` })
-      .createDefaultBridgedDeviceBasicInformationClusterServer(name, serial, this.matterbridge.aggregatorVendorId, 'Smappee', 'Smappee Meter', 1, '1.0.0')
-      .createDefaultPowerSourceWiredClusterServer()
+    const endpoint = new MatterbridgeEndpoint(electricalSensor, { id: `meter-${role}` })
+      .createDefaultBridgedDeviceBasicInformationClusterServer(name, serial, this.matterbridge.aggregatorVendorId, 'Smappee', 'Smappee Energy Meter', 1, '1.0.0')
+      .createDefaultPowerTopologyClusterServer()
+      .createDefaultElectricalPowerMeasurementClusterServer()
+      .createDefaultElectricalEnergyMeasurementClusterServer()
       .addRequiredClusterServers();
 
     await this.registerDevice(endpoint);
-    this.meters.push({ endpoint, kind, id });
+    this.meters.push({ endpoint, role, exported, cumulativeWh: 0 });
   }
 
   private async safeSetActuator(actuatorId: number, on: boolean): Promise<void> {
@@ -157,30 +167,68 @@ export class SmappeePlatform extends MatterbridgeDynamicPlatform {
     if (!this.api) return;
     const to = Date.now();
     const from = to - 10 * 60 * 1000;
+    let records: SmappeeConsumptionRecord[] = [];
+    try {
+      // Aggregation 1 = 5-minute buckets.
+      records = await this.api.getElectricityConsumption(this.serviceLocationId, from, to, 1);
+    } catch (error) {
+      this.log.debug(`Failed to fetch Smappee consumption: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+    const last = records.at(-1);
+    if (!last) return;
+
     for (const meter of this.meters) {
       try {
-        const records = await this.fetchRecords(meter, from, to);
-        const last = records.at(-1);
-        if (!last) continue;
-        const watts = Number(last.active ?? last.consumption ?? 0);
-        // ElectricalPowerMeasurement.activePower is expressed in mW.
-        await meter.endpoint.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(watts * 1000), this.log);
+        const wh = this.extractEnergyWh(meter.role, last);
+        // 5-minute bucket -> instantaneous power (W) = energy (Wh) * 12.
+        const watts = wh * 12;
+        meter.cumulativeWh += wh;
+        await this.publishMeter(meter, watts, meter.cumulativeWh);
       } catch (error) {
-        this.log.debug(`Failed to update meter ${meter.kind}-${meter.id}: ${error instanceof Error ? error.message : String(error)}`);
+        this.log.debug(`Failed to update meter ${meter.role}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   }
 
-  private async fetchRecords(meter: MeterEndpoint, from: number, to: number) {
-    if (!this.api) return [];
-    switch (meter.kind) {
-      case 'switch':
-        return this.api.getSwitchConsumption(this.serviceLocationId, meter.id, from, to);
-      case 'sensor':
-        return this.api.getSensorConsumption(this.serviceLocationId, meter.id, from, to);
+  /**
+   * Extract the energy in watt-hours for a meter role from a Smappee consumption record.
+   *
+   * @param {MeterRole} role - The meter role.
+   * @param {SmappeeConsumptionRecord} record - The latest consumption record.
+   * @returns {number} The energy in watt-hours (always non-negative).
+   */
+  private extractEnergyWh(role: MeterRole, record: SmappeeConsumptionRecord): number {
+    let value: number;
+    switch (role) {
+      case 'solar':
+        value = record.solar ?? 0;
+        break;
+      case 'ev':
+        value = record.evCharging ?? record.active ?? 0;
+        break;
       default:
-        return this.api.getElectricityConsumption(this.serviceLocationId, from, to);
+        value = record.consumption ?? 0;
+        break;
     }
+    return Math.max(0, Number(value));
+  }
+
+  /**
+   * Publish power and energy values to the measurement clusters of a meter endpoint.
+   *
+   * @param {EnergyMeter} meter - The meter to update.
+   * @param {number} watts - The instantaneous active power in watts.
+   * @param {number} cumulativeWh - The accumulated energy in watt-hours.
+   * @returns {Promise<void>} Resolves once the attributes are updated.
+   */
+  private async publishMeter(meter: EnergyMeter, watts: number, cumulativeWh: number): Promise<void> {
+    // ElectricalPowerMeasurement.activePower is expressed in mW.
+    await meter.endpoint.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(watts * 1000), this.log);
+    // ElectricalEnergyMeasurement cumulative energy is expressed in mWh.
+    const energy = { energy: Math.round(cumulativeWh * 1000) };
+    const attribute = meter.exported ? 'cumulativeEnergyExported' : 'cumulativeEnergyImported';
+    await meter.endpoint.updateAttribute('ElectricalEnergyMeasurement', attribute, energy, this.log);
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await

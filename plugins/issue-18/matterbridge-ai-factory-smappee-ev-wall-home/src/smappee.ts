@@ -55,6 +55,7 @@ export interface SmappeeConsumptionRecord {
   solar?: number;
   alwaysOn?: number;
   active?: number;
+  evCharging?: number;
 }
 
 /** Minimal Smappee OAuth2 + REST client. */
