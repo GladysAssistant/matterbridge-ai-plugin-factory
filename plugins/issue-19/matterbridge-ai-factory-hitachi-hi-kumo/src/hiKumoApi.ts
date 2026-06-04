@@ -72,8 +72,15 @@ export class HiKumoApi {
       body: body.toString(),
     });
     if (!res.ok) throw new Error(`Hi-Kumo login failed: ${res.status} ${res.statusText}`);
-    const setCookie = res.headers.get('set-cookie');
-    if (setCookie) this.cookie = setCookie.split(';')[0];
+    // Undici joins multiple Set-Cookie headers with commas in headers.get(), which corrupts the
+    // value (cookie expiry dates contain commas). Use getSetCookie() to read each cookie cleanly.
+    const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+    const raw = setCookies.length > 0 ? setCookies : [res.headers.get('set-cookie') ?? ''];
+    this.cookie = raw
+      .map((c) => c.split(';')[0].trim())
+      .filter((c) => c.length > 0)
+      .join('; ');
+    if (!this.cookie) throw new Error('Hi-Kumo login did not return a session cookie');
     this.log.debug('Hi-Kumo login successful');
   }
 
@@ -82,9 +89,28 @@ export class HiKumoApi {
     const res = await fetch(`${this.base}/setup/devices`, { headers: { Cookie: this.cookie } });
     if (!res.ok) throw new Error(`Hi-Kumo getDevices failed: ${res.status} ${res.statusText}`);
     const devices = (await res.json()) as OverkizDevice[];
-    return devices.filter(
-      (d) => /HitachiAirToAir|AirToAirHeatPump|HeatingSystem/i.test(d.controllableName ?? '') || /climat|clim|hi.?kumo/i.test(d.label),
-    );
+    this.log.debug(`Hi-Kumo returned ${devices.length} device(s): ${devices.map((d) => `${d.label} [${d.controllableName ?? '?'}]`).join(', ')}`);
+
+    // Commands that identify a controllable air-to-air heat pump (climate) endpoint.
+    const climateCommands = ['setMainOperation', 'setOperatingMode', 'setTargetTemperature', 'setAutoManuMode'];
+    const climate = devices.filter((d) => {
+      const commands = d.definition?.commands?.map((c) => c.commandName) ?? [];
+      const byCommand = commands.some((c) => climateCommands.includes(c));
+      const byName = /HitachiAirToAir|AirToAirHeatPump|HeatingSystem|AirConditioning/i.test(d.controllableName ?? '') || /climat|clim|hi.?kumo/i.test(d.label ?? '');
+      return byCommand || byName;
+    });
+
+    // A single physical unit can expose several sub-components that share the same base device URL
+    // (e.g. ".../io#1", ".../io#2"). Keep only one endpoint per physical unit to avoid duplicate ids.
+    const seen = new Set<string>();
+    const unique = climate.filter((d) => {
+      const baseUrl = d.deviceURL.split('#')[0];
+      if (seen.has(baseUrl)) return false;
+      seen.add(baseUrl);
+      return true;
+    });
+    this.log.debug(`Hi-Kumo kept ${unique.length} climate device(s) after filtering`);
+    return unique;
   }
 
   /**

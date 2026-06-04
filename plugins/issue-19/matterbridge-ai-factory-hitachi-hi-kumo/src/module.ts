@@ -88,8 +88,13 @@ export class HiKumoPlatform extends MatterbridgeDynamicPlatform {
       devices = [{ deviceURL: 'hikumo://demo/ac1', label: 'Climatisation', controllableName: 'HitachiAirToAirHeatPump' }];
     }
 
+    const usedSerials = new Set<string>();
     for (const device of devices) {
-      await this.registerClimate(device);
+      try {
+        await this.registerClimate(device, usedSerials);
+      } catch (error) {
+        this.log.error(`Failed to register Hi-Kumo device ${device.label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 
@@ -97,9 +102,12 @@ export class HiKumoPlatform extends MatterbridgeDynamicPlatform {
    * Build and register one air conditioner endpoint.
    *
    * @param {OverkizDevice} device - Source Overkiz device.
+   * @param {Set<string>} usedSerials - Serials already assigned, used to guarantee uniqueness.
    */
-  private async registerClimate(device: OverkizDevice): Promise<void> {
-    const serial = device.deviceURL.replace(/[^A-Za-z0-9]/g, '').slice(-16) || 'HIKUMO0001';
+  private async registerClimate(device: OverkizDevice, usedSerials: Set<string>): Promise<void> {
+    let serial = device.deviceURL.replace(/[^A-Za-z0-9]/g, '').slice(-16) || 'HIKUMO0001';
+    while (usedSerials.has(serial)) serial = `${serial.slice(0, 14)}${usedSerials.size.toString().padStart(2, '0')}`;
+    usedSerials.add(serial);
     const name = device.label || 'Hi-Kumo';
 
     const endpoint = new MatterbridgeEndpoint([airConditioner, powerSource], { id: `hikumo-${serial}` })
