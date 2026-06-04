@@ -1,0 +1,71 @@
+{
+  "title": "Matterbridge Hitachi Hi-Kumo plugin",
+  "description": "matterbridge-ai-factory-hitachi-hi-kumo v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "username": {
+      "title": "Hi-Kumo Username",
+      "description": "Your Hitachi Hi-Kumo account email.",
+      "type": "string"
+    },
+    "password": {
+      "title": "Hi-Kumo Password",
+      "description": "Your Hitachi Hi-Kumo account password.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "server": {
+      "title": "Server Region",
+      "description": "Hi-Kumo cloud server region.",
+      "type": "string",
+      "enum": ["europe", "oceania", "asia"],
+      "default": "europe"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

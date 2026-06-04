@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-hitachi-hi-kumo",
+  "type": "DynamicPlatform",
+  "username": "",
+  "password": "",
+  "server": "europe",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
