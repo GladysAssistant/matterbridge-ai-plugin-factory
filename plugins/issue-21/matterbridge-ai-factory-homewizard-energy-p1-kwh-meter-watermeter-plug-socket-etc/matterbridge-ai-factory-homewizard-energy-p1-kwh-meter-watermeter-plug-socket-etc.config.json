@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-homewizard-energy-p1-kwh-meter-watermeter-plug-socket-etc",
+  "type": "DynamicPlatform",
+  "version": "1.0.0",
+  "devices": [],
+  "pollInterval": 10,
+  "whiteList": [],
+  "blackList": [],
+  "unregisterOnShutdown": false
+}

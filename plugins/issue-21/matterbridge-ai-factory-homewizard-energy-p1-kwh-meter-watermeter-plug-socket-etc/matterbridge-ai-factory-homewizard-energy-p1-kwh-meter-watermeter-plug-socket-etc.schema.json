@@ -1,0 +1,55 @@
+{
+  "title": "Matterbridge HomeWizard Energy plugin",
+  "description": "Expose HomeWizard Energy devices (P1, kWh Meter, Watermeter, Plug/Socket) to Matter via the local API. Enable 'Local API' in the HomeWizard Energy app: Settings -> Meters -> [device] -> Local API.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true
+    },
+    "type": {
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true
+    },
+    "devices": {
+      "description": "List of HomeWizard devices to expose",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "description": "Display name", "type": "string" },
+          "host": { "description": "Hostname or IP address of the device", "type": "string" },
+          "type": {
+            "description": "Optional product type hint (auto-detected if omitted), e.g. HWE-P1, HWE-KWH1, HWE-KWH3, HWE-SKT, HWE-WTR",
+            "type": "string"
+          },
+          "token": { "description": "Optional bearer token (newer firmwares)", "type": "string" }
+        },
+        "required": ["name", "host"]
+      }
+    },
+    "pollInterval": {
+      "description": "Polling interval in seconds (recommended 5-10)",
+      "type": "number",
+      "default": 10
+    },
+    "whiteList": {
+      "description": "Only expose devices in this list (by name or serial)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blackList": {
+      "description": "Never expose devices in this list (by name or serial)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unregisterOnShutdown": {
+      "description": "Unregister all devices on shutdown (development)",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": ["name", "type"]
+}
