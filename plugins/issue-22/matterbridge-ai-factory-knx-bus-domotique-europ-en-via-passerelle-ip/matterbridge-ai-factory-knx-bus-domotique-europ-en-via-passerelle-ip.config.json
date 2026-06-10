@@ -1,0 +1,18 @@
+{
+  "name": "matterbridge-ai-factory-knx-bus-domotique-europ-en-via-passerelle-ip",
+  "type": "DynamicPlatform",
+  "connection": {
+    "type": "tunneling",
+    "host": "192.168.1.50",
+    "port": 3671,
+    "local_ip": "",
+    "tunneling_secure": false,
+    "device_password": ""
+  },
+  "devices_csv": "/config/knx-devices.csv",
+  "poll_interval_seconds": 30,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

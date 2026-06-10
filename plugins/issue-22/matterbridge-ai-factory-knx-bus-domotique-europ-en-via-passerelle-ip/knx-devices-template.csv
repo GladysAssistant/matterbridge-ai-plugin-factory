@@ -1,0 +1,10 @@
+name,group_address_write,group_address_read,group_address_state,device_type,dpt,room,comment
+Salon Lustre,1/1/1,1/1/1,1/1/1,light,1.001,Salon,On/Off
+Cuisine Variateur,1/1/5,1/1/6,1/1/6,light,5.001,Cuisine,Dimmer 0-100%
+Prise Bureau,1/3/1,1/3/1,1/3/1,switch,1.001,Bureau,On/Off
+Chambre Volet,1/2/10,1/2/11,1/2/11,cover,5.001,Chambre,Position volet 0-100%
+Garage Volet,1/2/20,,1/2/21,cover,1.008,Garage,Up/Down seul
+Salon Thermostat,2/1/1,,2/1/2,climate,9.001,Salon,Consigne temperature
+Salon Temperature,,,3/1/1,sensor_temperature,9.001,Salon,Lecture temperature
+Salle de bain Humidite,,,3/2/1,sensor_humidity,9.007,Salle de bain,Lecture humidite
+Porte Entree Contact,,,4/1/1,binary_sensor,1.019,Entree,Contact porte/fenetre

@@ -1,0 +1,101 @@
+{
+  "title": "Matterbridge KNX plugin",
+  "description": "matterbridge-ai-factory-knx-bus-domotique-europ-en-via-passerelle-ip v. 1.0.0 - Expose KNX (European home-automation bus via IP gateway) devices defined in a CSV to Matter.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "connection": {
+      "title": "KNX/IP gateway connection",
+      "description": "How to reach the KNX bus through your IP interface/router.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "title": "Connection type",
+          "description": "tunneling (point-to-point with the interface) or routing (multicast).",
+          "type": "string",
+          "enum": ["tunneling", "routing"],
+          "default": "tunneling"
+        },
+        "host": {
+          "title": "Gateway IP",
+          "description": "IP of the KNX/IP interface or router (e.g. 192.168.1.50). For routing use 224.0.23.12.",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "description": "KNX/IP port, usually 3671.",
+          "type": "number",
+          "default": 3671
+        },
+        "local_ip": {
+          "title": "Local IP (optional)",
+          "description": "Local interface IP to bind to (useful with multiple network cards).",
+          "type": "string"
+        },
+        "tunneling_secure": {
+          "title": "KNX IP Secure tunneling",
+          "description": "Enable KNX/IP Secure tunneling (TCP). Leave off for plain tunneling.",
+          "type": "boolean",
+          "default": false
+        },
+        "device_password": {
+          "title": "Device/tunnel password",
+          "description": "Tunnel user password for KNX IP Secure (only when secure tunneling is enabled).",
+          "type": "string"
+        }
+      }
+    },
+    "devices_csv": {
+      "title": "Devices CSV path",
+      "description": "Absolute path to the CSV file listing your KNX devices and group addresses (ETS export).",
+      "type": "string"
+    },
+    "poll_interval_seconds": {
+      "title": "Poll interval (seconds)",
+      "description": "How often to send GroupValue_Read to refresh state. 0 disables polling.",
+      "type": "number",
+      "default": 30
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices (by name) in the list will be exposed. Empty list = expose all.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices (by name) in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
