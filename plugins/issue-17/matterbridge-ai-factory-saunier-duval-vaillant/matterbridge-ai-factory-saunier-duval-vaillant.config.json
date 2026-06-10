@@ -1,0 +1,13 @@
+{
+  "name": "matterbridge-ai-factory-saunier-duval-vaillant",
+  "type": "DynamicPlatform",
+  "username": "",
+  "password": "",
+  "country": "germany",
+  "brand": "vaillant",
+  "pollInterval": 300,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

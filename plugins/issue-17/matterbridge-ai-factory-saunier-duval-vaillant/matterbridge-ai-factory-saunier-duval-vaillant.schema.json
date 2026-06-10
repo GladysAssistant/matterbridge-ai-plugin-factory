@@ -1,0 +1,83 @@
+{
+  "title": "Saunier Duval / Vaillant",
+  "description": "matterbridge-ai-factory-saunier-duval-vaillant v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "username": {
+      "title": "Email",
+      "description": "The email address used in the myVAILLANT / MiGo Link app.",
+      "type": "string"
+    },
+    "password": {
+      "title": "Password",
+      "description": "The password used in the myVAILLANT / MiGo Link app.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "country": {
+      "title": "Country",
+      "description": "Country of your account, lowercase English name (e.g. germany, france, spain, italy).",
+      "type": "string",
+      "default": "germany"
+    },
+    "brand": {
+      "title": "Brand",
+      "description": "Account brand.",
+      "type": "string",
+      "default": "vaillant",
+      "enum": ["vaillant", "sdbg", "bulex", "glow-worm", "demirdokum"]
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to refresh device state from the cloud (minimum 60).",
+      "type": "number",
+      "default": 300
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
