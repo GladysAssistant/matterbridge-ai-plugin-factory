@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-philips-hue-bridge-v2-api-clip-v2",
+  "type": "DynamicPlatform",
+  "host": "",
+  "applicationKey": "",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
