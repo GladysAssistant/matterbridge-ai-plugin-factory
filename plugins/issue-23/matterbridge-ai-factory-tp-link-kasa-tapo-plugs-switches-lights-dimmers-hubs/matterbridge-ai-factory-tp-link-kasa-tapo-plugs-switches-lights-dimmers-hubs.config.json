@@ -1,0 +1,14 @@
+{
+  "name": "matterbridge-ai-factory-tp-link-kasa-tapo-plugs-switches-lights-dimmers-hubs",
+  "type": "DynamicPlatform",
+  "username": "",
+  "password": "",
+  "enableKasaDiscovery": true,
+  "discoveryTimeout": 5,
+  "devices": [],
+  "pollInterval": 5,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

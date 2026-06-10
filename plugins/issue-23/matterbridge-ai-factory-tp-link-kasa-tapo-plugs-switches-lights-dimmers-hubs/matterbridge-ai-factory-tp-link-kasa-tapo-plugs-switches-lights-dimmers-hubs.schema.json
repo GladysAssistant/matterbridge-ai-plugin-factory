@@ -1,0 +1,102 @@
+{
+  "title": "TP-Link Kasa & Tapo",
+  "description": "matterbridge-ai-factory-tp-link-kasa-tapo-plugs-switches-lights-dimmers-hubs v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "username": {
+      "title": "TP-Link Account Email",
+      "description": "TP-Link (Tapo) account email. Required for Tapo (KLAP) devices.",
+      "type": "string"
+    },
+    "password": {
+      "title": "TP-Link Account Password",
+      "description": "TP-Link (Tapo) account password. Required for Tapo (KLAP) devices.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "enableKasaDiscovery": {
+      "title": "Enable Kasa Discovery",
+      "description": "Broadcast-discover Kasa devices on the local network.",
+      "type": "boolean",
+      "default": true
+    },
+    "discoveryTimeout": {
+      "title": "Discovery Timeout (s)",
+      "description": "How long to broadcast-discover Kasa devices at startup.",
+      "type": "number",
+      "default": 5
+    },
+    "devices": {
+      "title": "Manual Devices",
+      "description": "Manually add devices by IP (required for Tapo, optional for Kasa).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "title": "Protocol",
+            "type": "string",
+            "enum": ["kasa", "tapo"],
+            "default": "tapo"
+          },
+          "host": {
+            "title": "IP Address / Host",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name (optional)",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "pollInterval": {
+      "title": "Poll Interval (s)",
+      "description": "How often to poll device state.",
+      "type": "number",
+      "default": 5
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. For debugging only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
