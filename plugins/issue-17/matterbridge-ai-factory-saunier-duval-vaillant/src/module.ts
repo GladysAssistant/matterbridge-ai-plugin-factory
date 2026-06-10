@@ -16,11 +16,44 @@
 import { BasePlatformConfig, MatterbridgeDynamicPlatform, MatterbridgeEndpoint, PlatformMatterbridge } from 'matterbridge';
 import { humiditySensor, temperatureSensor, thermostatDevice } from 'matterbridge';
 import { AnsiLogger, LogLevel } from 'matterbridge/logger';
-import { Thermostat } from 'matterbridge/matter/clusters';
+import { ModeSelect, Thermostat } from 'matterbridge/matter/clusters';
 
 import { OperationMode, VaillantClient, ZoneStatus } from './vaillantClient.js';
 
 const VENDOR_ID = 0xfff1;
+
+/** ModeSelect mode indices for the device-status capability. */
+const STATUS_OFF = 0;
+const STATUS_PROGRAM = 1;
+const STATUS_MANUAL = 2;
+const STATUS_AWAY = 3;
+
+/** Supported device-status modes exposed through the ModeSelect cluster. */
+const STATUS_MODES: ModeSelect.ModeOption[] = [
+  { label: 'Off', mode: STATUS_OFF, semanticTags: [] },
+  { label: 'Program', mode: STATUS_PROGRAM, semanticTags: [] },
+  { label: 'Manual', mode: STATUS_MANUAL, semanticTags: [] },
+  { label: 'Away', mode: STATUS_AWAY, semanticTags: [] },
+];
+
+/**
+ * Map a logical zone status to its ModeSelect mode index.
+ *
+ * @param {ZoneStatus} status - The logical zone status.
+ * @returns {number} The matching ModeSelect mode index.
+ */
+function statusToMode(status: ZoneStatus): number {
+  switch (status) {
+    case 'program':
+      return STATUS_PROGRAM;
+    case 'manual':
+      return STATUS_MANUAL;
+    case 'away':
+      return STATUS_AWAY;
+    default:
+      return STATUS_OFF;
+  }
+}
 
 /** Instance configuration for this platform. */
 export type VaillantPlatformConfig = BasePlatformConfig & {
@@ -118,6 +151,7 @@ export class VaillantPlatform extends MatterbridgeDynamicPlatform {
           .createDefaultIdentifyClusterServer()
           .createDefaultThermostatClusterServer(zone.currentTemperature ?? 20, zone.setpoint ?? 20, 20, 0, 5, 30, 16, 30)
           .createDefaultRelativeHumidityMeasurementClusterServer(zone.humidity !== null ? zone.humidity * 100 : null)
+          .createDefaultModeSelectClusterServer('Operation', STATUS_MODES, statusToMode(zone.status), STATUS_OFF)
           .addRequiredClusterServers();
 
         await this.registerDevice(device);
@@ -166,6 +200,16 @@ export class VaillantPlatform extends MatterbridgeDynamicPlatform {
         },
         this.log,
       );
+
+      // Device status: Off / Program / Manual / Away. Drives the cloud operation mode and away mode.
+      await binding.device.subscribeAttribute(
+        ModeSelect.Cluster.id,
+        'currentMode',
+        (value: number) => {
+          void this.onStatusModeChange(serial, value);
+        },
+        this.log,
+      );
     }
 
     this.startPolling();
@@ -183,6 +227,26 @@ export class VaillantPlatform extends MatterbridgeDynamicPlatform {
       await this.client.setOperationMode(binding.systemId, binding.zoneIndex, mode);
     } catch (err) {
       this.log.error(`Failed to set mode for ${serial}: ${(err as Error).message}`);
+    }
+  }
+
+  private async onStatusModeChange(serial: string, value: number): Promise<void> {
+    const binding = this.zones.get(serial);
+    if (!binding || !this.client) return;
+    this.log.info(`Set zone ${serial} status -> ${value}`);
+    try {
+      if (value === STATUS_AWAY) {
+        await this.client.setAway(binding.systemId);
+        binding.status = 'away';
+        return;
+      }
+      // Leaving away mode requires cancelling the holiday first.
+      if (binding.status === 'away') await this.client.cancelAway(binding.systemId);
+      const mode: OperationMode = value === STATUS_PROGRAM ? 'TIME_CONTROLLED' : value === STATUS_MANUAL ? 'MANUAL' : 'OFF';
+      await this.client.setOperationMode(binding.systemId, binding.zoneIndex, mode);
+      binding.status = value === STATUS_PROGRAM ? 'program' : value === STATUS_MANUAL ? 'manual' : 'off';
+    } catch (err) {
+      this.log.error(`Failed to set status for ${serial}: ${(err as Error).message}`);
     }
   }
 
@@ -243,6 +307,9 @@ export class VaillantPlatform extends MatterbridgeDynamicPlatform {
           ? Thermostat.SystemMode.Auto
           : Thermostat.SystemMode.Off;
     await dev.updateAttribute(Thermostat.Cluster.id, 'systemMode', mode, this.log);
+
+    // Device status capability (Off / Program / Manual / Away).
+    await dev.updateAttribute(ModeSelect.Cluster.id, 'currentMode', statusToMode(binding.status), this.log);
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
