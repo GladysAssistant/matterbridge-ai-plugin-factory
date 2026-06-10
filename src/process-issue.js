@@ -8,6 +8,10 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { spawn, execSync } = require("child_process");
+const {
+  CreditsExhaustedError,
+  detectCreditsExhausted,
+} = require("./factory-errors");
 const fs = require("fs").promises;
 const fsSync = require("fs");
 const path = require("path");
@@ -310,6 +314,65 @@ Create the plugin in the CURRENT working directory. The plugin folder name MUST 
  *
  * Throws on any unrecoverable git error.
  */
+/**
+ * Lighter cleanup between batch jobs. Keeps factory deps but resets the repo
+ * tree so the next issue starts from a known state.
+ */
+async function ensureCleanBetweenJobs() {
+  const repoRoot = path.resolve(__dirname, "..");
+  console.log("🧹 Cleaning up between jobs...");
+
+  killStrayMatterbridge();
+
+  try {
+    execSync("git reset --hard HEAD", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git clean -fdx -e node_modules -e .env -e .factory-state.json -e .factory.lock", {
+      cwd: repoRoot,
+      stdio: "pipe",
+    });
+    execSync("git fetch origin main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git checkout main", { cwd: repoRoot, stdio: "pipe" });
+    execSync("git reset --hard origin/main", { cwd: repoRoot, stdio: "pipe" });
+    console.log("✅ Ready for next job");
+  } catch (err) {
+    console.warn(`⚠️  Between-jobs cleanup issue: ${err.message}`);
+  }
+}
+
+/**
+ * Put an interrupted issue back in the queue without marking it as failed.
+ */
+async function requeueInterruptedIssue(
+  issueNumber,
+  { mode = "generate", recovered = false } = {},
+) {
+  const reason = recovered
+    ? "a previous run was interrupted"
+    : "the Claude usage window/limit was reached";
+
+  await postComment(
+    issueNumber,
+    `## ⏸️ Factory paused
+
+Processing was interrupted because ${reason}. This issue has been put back in the queue and will resume automatically when the factory runs again.
+
+---
+*This is an automated response from the Matterbridge AI Plugin Factory*`,
+  );
+
+  if (mode === "fix") {
+    await updateLabels(issueNumber, ["ready-for-testing"], [
+      "in-progress",
+      "error",
+    ]);
+  } else {
+    await updateLabels(issueNumber, ["pending-review", "plugin-request"], [
+      "in-progress",
+      "error",
+    ]);
+  }
+}
+
 async function ensureCleanWorkspace() {
   const repoRoot = path.resolve(__dirname, "..");
   console.log("🧼 Ensuring clean workspace...");
@@ -335,10 +398,10 @@ async function ensureCleanWorkspace() {
     // Remove all untracked files INCLUDING gitignored ones
     // (this wipes plugins/issue-*, artifacts/issue-*, *.tgz, etc.)
     // We exclude node_modules so we don't have to reinstall factory deps every run.
-    execSync("git clean -fdx -e node_modules", {
-      cwd: repoRoot,
-      stdio: "pipe",
-    });
+    execSync(
+      "git clean -fdx -e node_modules -e .env -e .factory-state.json -e .factory.lock",
+      { cwd: repoRoot, stdio: "pipe" },
+    );
 
     // Make sure we're on main and up-to-date
     execSync("git fetch origin main", { cwd: repoRoot, stdio: "pipe" });
@@ -665,14 +728,26 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           }
         });
 
+        const cliOutput = [];
+
         claude.stderr.on("data", (data) => {
-          console.error(data.toString());
+          const chunk = data.toString();
+          cliOutput.push(chunk);
+          console.error(chunk);
         });
 
         claude.on("close", (code, signal) => {
           killStrayMatterbridge();
+          const output = cliOutput.join("");
           if (code === 0) {
             resolve({ success: true, transcript });
+          } else if (detectCreditsExhausted(output)) {
+            reject(
+              new CreditsExhaustedError(
+                "Claude credits or usage limit reached",
+                output,
+              ),
+            );
           } else if (code === null) {
             reject(
               new Error(
@@ -1250,6 +1325,11 @@ If you encounter issues, please describe them in detail.
   } catch (error) {
     console.error(`Error processing issue #${issueNumber}:`, error);
 
+    if (error instanceof CreditsExhaustedError) {
+      await requeueInterruptedIssue(issueNumber, { mode: "generate" });
+      throw error;
+    }
+
     await postComment(
       issueNumber,
       `## ❌ Error During Processing
@@ -1544,21 +1624,18 @@ async function processFeedback(issueNumber) {
     try {
       await checkoutPluginBranch(branchName);
     } catch (err) {
-      console.error(
-        `❌ Could not checkout branch ${branchName}: ${err.message}`,
+      throw new Error(
+        `Could not checkout branch ${branchName}: ${err.message}. Run without --fix to generate the plugin first.`,
       );
-      console.log("Run without --fix to generate the plugin first.");
-      process.exit(1);
     }
 
     // Verify plugin dir now exists
     try {
       await fs.access(pluginDir);
     } catch {
-      console.error(
-        `❌ Plugin directory not found after branch checkout: ${pluginDir}`,
+      throw new Error(
+        `Plugin directory not found after branch checkout: ${pluginDir}`,
       );
-      process.exit(1);
     }
 
     // Get comments and extract feedback
@@ -1566,8 +1643,7 @@ async function processFeedback(issueNumber) {
     const feedback = extractLatestFeedback(comments);
 
     if (!feedback) {
-      console.error("❌ No user feedback found in comments");
-      process.exit(1);
+      throw new Error("No user feedback found in comments");
     }
 
     console.log(`📝 Found feedback from ${feedback.author}`);
@@ -1686,6 +1762,11 @@ ${formatTranscriptForComment(claudeTranscript)}
   } catch (error) {
     console.error("Error processing feedback:", error);
 
+    if (error instanceof CreditsExhaustedError) {
+      await requeueInterruptedIssue(issueNumber, { mode: "fix" });
+      throw error;
+    }
+
     await postComment(
       issueNumber,
       `## ❌ Error Processing Feedback
@@ -1701,7 +1782,7 @@ ${error.message}
     );
 
     await updateLabels(issueNumber, ["error"], ["in-progress"]);
-    process.exit(1);
+    throw error;
   }
 }
 
@@ -1734,7 +1815,10 @@ if (require.main === module) {
     publishOnly(parseInt(issueNumber));
   } else if (fixFlag && issueNumber) {
     // Process feedback and fix the plugin
-    processFeedback(parseInt(issueNumber));
+    processFeedback(parseInt(issueNumber)).catch((err) => {
+      console.error("❌ Error:", err);
+      process.exit(1);
+    });
   } else if (resumeFlag && issueNumber) {
     // Resume interrupted work
     resumeWork(parseInt(issueNumber));
@@ -1762,5 +1846,8 @@ module.exports = {
   parseIssueBody,
   validateRequest,
   ensureCleanWorkspace,
+  ensureCleanBetweenJobs,
+  requeueInterruptedIssue,
   checkoutPluginBranch,
+  CreditsExhaustedError,
 };

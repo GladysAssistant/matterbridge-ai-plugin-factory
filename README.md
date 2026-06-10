@@ -216,6 +216,38 @@ node src/process-issue.js 5 --fix --model=claude-opus-4-7
 CLAUDE_MODEL=claude-opus-4-7 node src/process-issue.js 5
 ```
 
+### Hourly CRON (Batch — recommended for large queues)
+
+`src/process-batch.js` is the smart orchestrator for processing many plugin requests within Claude's 5-hour usage window. Run it hourly via cron; each invocation:
+
+1. Processes as many issues as possible (fixes first, then new generations)
+2. Stops cleanly when the time budget is nearly exhausted
+3. Detects Claude credit/quota exhaustion and **pauses** the factory (issues are re-queued, not left stuck in `in-progress`)
+4. Resumes automatically when the pause expires or on the next cron tick
+
+```bash
+node src/process-batch.js
+node src/process-batch.js --model claude-opus-4-7
+node src/process-batch.js --dry-run    # show next job without running
+node src/process-batch.js --status     # show pause state
+node src/process-batch.js --clear-pause
+```
+
+Tune via environment variables (see `.env.example`):
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `FACTORY_MAX_RUNTIME_MS` | 4.5h | Max batch duration |
+| `FACTORY_MIN_JOB_MS` | 45min | Min time left to start another plugin |
+| `FACTORY_MAX_PLUGINS` | 6 | Max plugins per run |
+| `FACTORY_PAUSE_DURATION_MS` | 5h | Pause after credits exhausted |
+
+Example crontab (every hour):
+
+```
+0 * * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-batch.js >> /var/log/matterbridge-factory.log 2>&1
+```
+
 ### Daily CRON (Process One Issue Per Day)
 
 `src/process-next-issue.js` fetches the **oldest** open issue with labels `plugin-request` + `pending-review` and generates a single plugin, then exits. Perfect for a daily cron:
