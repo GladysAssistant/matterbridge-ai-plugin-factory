@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-wled-contr-leurs-led-esp8266-esp32",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "controllers": [],
+  "pollInterval": 30,
+  "debug": false,
+  "unregisterOnShutdown": false
+}
