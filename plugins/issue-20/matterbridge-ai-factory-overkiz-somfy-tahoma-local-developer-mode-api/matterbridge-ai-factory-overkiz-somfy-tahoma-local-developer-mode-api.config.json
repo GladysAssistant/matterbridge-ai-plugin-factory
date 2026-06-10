@@ -1,0 +1,13 @@
+{
+  "name": "matterbridge-ai-factory-overkiz-somfy-tahoma-local-developer-mode-api",
+  "type": "DynamicPlatform",
+  "host": "",
+  "port": 8443,
+  "token": "",
+  "verifySsl": false,
+  "pollingInterval": 5000,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

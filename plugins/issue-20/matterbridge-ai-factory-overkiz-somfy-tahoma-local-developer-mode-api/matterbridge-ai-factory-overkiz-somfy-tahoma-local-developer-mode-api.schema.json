@@ -1,0 +1,82 @@
+{
+  "title": "Overkiz / Somfy TaHoma (local Developer Mode API)",
+  "description": "matterbridge-ai-factory-overkiz-somfy-tahoma-local-developer-mode-api - control Somfy/Overkiz devices locally (no cloud).",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Gateway host / IP",
+      "description": "IP address of the TaHoma/Connexoon gateway (recommended) or {PIN}.local. Using the IP avoids frequent disconnections caused by the .local hostname.",
+      "type": "string"
+    },
+    "port": {
+      "title": "Port",
+      "description": "Local API port (default 8443).",
+      "type": "number",
+      "default": 8443
+    },
+    "token": {
+      "title": "Bearer token",
+      "description": "Token generated in the Developer Mode menu of the TaHoma by Somfy app (enable Developer Mode by tapping the gateway PIN 7 times).",
+      "type": "string"
+    },
+    "verifySsl": {
+      "title": "Verify SSL certificate",
+      "description": "Verify the gateway TLS certificate. Disable when connecting by IP (the self-signed certificate hostname will not match).",
+      "type": "boolean",
+      "default": false
+    },
+    "ca": {
+      "title": "CA certificate (PEM)",
+      "description": "Optional Overkiz root CA certificate in PEM format to validate the gateway when 'Verify SSL certificate' is enabled.",
+      "type": "string"
+    },
+    "pollingInterval": {
+      "title": "Event polling interval (ms)",
+      "description": "How often to fetch device state-change events from the gateway.",
+      "type": "number",
+      "default": 5000
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
