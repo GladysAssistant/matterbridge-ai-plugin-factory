@@ -29,6 +29,61 @@ const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || "./artifacts";
 let CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
 
 /**
+ * Split an issue body into named sections.
+ * GitHub issue forms render fields as `##` headings; older issues may use `###`.
+ */
+function splitIssueSections(body) {
+  const text = body || "";
+
+  if (/^##\s+/m.test(text)) {
+    return text
+      .split(/\r?\n(?=##\s+)/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((section) => {
+        const lines = section.split("\n");
+        const header = lines[0].replace(/^#+\s*/, "").trim();
+        const content = lines.slice(1).join("\n").trim();
+        return { header, content };
+      });
+  }
+
+  return text
+    .split(/###\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((section) => {
+      const lines = section.split("\n");
+      const header = lines[0].trim();
+      const content = lines.slice(1).join("\n").trim();
+      return { header, content };
+    });
+}
+
+/** First meaningful line of a section (skips blank lines and sub-headings). */
+function firstContentLine(content) {
+  for (const line of content.split("\n")) {
+    const trimmed = line.replace(/^[-*]\s*/, "").trim();
+    if (trimmed && !trimmed.startsWith("#")) return trimmed;
+  }
+  return "";
+}
+
+/** Parse capability bullet lines, ignoring sub-headings and table markup. */
+function parseCapabilityLines(content) {
+  return content
+    .split("\n")
+    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .filter(
+      (line) =>
+        line &&
+        !line.startsWith("#") &&
+        !line.startsWith("|") &&
+        !/^[-|]+\s*$/.test(line),
+    );
+}
+
+/**
  * Parse issue body to extract structured data
  */
 function parseIssueBody(body) {
@@ -43,40 +98,39 @@ function parseIssueBody(body) {
     additionalContext: "",
   };
 
-  // Parse sections from the issue body
-  const sections = body.split(/###\s+/);
+  for (const { header, content } of splitIssueSections(body)) {
+    const h = header.toLowerCase();
 
-  for (const section of sections) {
-    const lines = section.trim().split("\n");
-    const header = lines[0]?.toLowerCase() || "";
-    const content = lines.slice(1).join("\n").trim();
-
-    if (
-      header.includes("device/service name") ||
-      header.includes("device name")
-    ) {
-      data.deviceName = content.replace(/^[-*]\s*/, "").trim();
-    } else if (header.includes("device category")) {
-      data.deviceCategory = content.replace(/^[-*]\s*/, "").trim();
-    } else if (header.includes("api documentation")) {
+    if (h.includes("device/service name") || h.includes("device name")) {
+      data.deviceName = firstContentLine(content);
+    } else if (h.includes("device category")) {
+      data.deviceCategory = firstContentLine(content);
+    } else if (h.includes("api documentation")) {
       data.apiDocumentation = extractUrls(content);
-    } else if (header.includes("existing integrations")) {
+    } else if (h.includes("existing integrations")) {
       data.existingIntegrations = extractUrls(content);
+    } else if (h.includes("device capabilities")) {
+      data.deviceCapabilities = parseCapabilityLines(content);
     } else if (
-      header.includes("device capabilities") ||
-      header.includes("capabilities")
+      h.includes("capabilities") &&
+      !h.includes("confirmations")
     ) {
-      data.deviceCapabilities = content
-        .split("\n")
-        .map((line) => line.replace(/^[-*]\s*/, "").trim())
-        .filter(Boolean);
-    } else if (header.includes("authentication")) {
-      data.authenticationType = content.replace(/^[-*]\s*/, "").trim();
-    } else if (header.includes("connection")) {
-      data.connectionType = content.replace(/^[-*]\s*/, "").trim();
-    } else if (header.includes("additional context")) {
+      data.deviceCapabilities = parseCapabilityLines(content);
+    } else if (h.includes("authentication")) {
+      data.authenticationType = firstContentLine(content);
+    } else if (h.includes("connection")) {
+      data.connectionType = firstContentLine(content);
+    } else if (h.includes("additional context")) {
       data.additionalContext = content;
     }
+  }
+
+  // "Existing Integrations & Documentation" may also contain API doc URLs only
+  if (
+    data.existingIntegrations.length === 0 &&
+    data.apiDocumentation.length > 0
+  ) {
+    data.existingIntegrations = data.apiDocumentation;
   }
 
   return data;
@@ -1844,6 +1898,7 @@ module.exports = {
   processFeedback,
   resumeWork,
   parseIssueBody,
+  splitIssueSections,
   validateRequest,
   ensureCleanWorkspace,
   ensureCleanBetweenJobs,

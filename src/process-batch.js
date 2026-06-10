@@ -65,7 +65,6 @@ const PROCESSED_LABELS = new Set([
   "in-progress",
   "ready-for-testing",
   "completed",
-  "needs-info",
 ]);
 
 const DEFAULT_MAX_RUNTIME_MS = 4.5 * 60 * 60 * 1000;
