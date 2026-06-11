@@ -242,13 +242,18 @@ Tune via environment variables (see `.env.example`):
 | `FACTORY_MAX_PLUGINS` | 6 | Max plugins per run |
 | `FACTORY_PAUSE_DURATION_MS` | 5h | Pause after credits exhausted |
 
-Example crontab (every hour):
+Example crontab (see also `scripts/crontab.example`):
 
 ```
-0 * * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-batch.js >> /var/log/matterbridge-factory.log 2>&1
+# Matterbridge AI Plugin Factory — batch schedule
+# Log files: /home/matterbridge/logs/<job>-YYYY-MM-DD.log
+
+0 * * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-batch.js --model claude-opus-4-8 >> /home/matterbridge/logs/process-batch-$(date +\%Y-\%m-\%d).log 2>&1
 ```
 
-### Daily CRON (Process One Issue Per Day)
+This single job replaces separate `process-next-issue.js` (daily generation) and `process-next-fix.js` (hourly fixes) cron entries.
+
+#### Daily CRON (Process One Issue Per Day)
 
 `src/process-next-issue.js` fetches the **oldest** open issue with labels `plugin-request` + `pending-review` and generates a single plugin, then exits. Perfect for a daily cron:
 
@@ -263,7 +268,7 @@ Example crontab (runs every day at 6:00 AM):
 0 6 * * * cd /opt/matterbridge-factory && /usr/bin/node src/process-next-issue.js >> /var/log/matterbridge-factory.log 2>&1
 ```
 
-### Daily CRON (Process One Fix Per Day)
+#### Daily CRON (Process One Fix Per Day)
 
 `src/process-next-fix.js` finds the oldest issue labeled `ready-for-testing` whose **latest comment is from a human** (i.e. the user left feedback after the last bot reply) and runs `--fix` on it, then exits.
 
