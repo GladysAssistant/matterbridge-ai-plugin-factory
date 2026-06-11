@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-vesync-prises-etekcity-purificateurs-levoit-humidificateurs-switches",
+  "type": "DynamicPlatform",
+  "username": "",
+  "password": "",
+  "timeZone": "America/New_York",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

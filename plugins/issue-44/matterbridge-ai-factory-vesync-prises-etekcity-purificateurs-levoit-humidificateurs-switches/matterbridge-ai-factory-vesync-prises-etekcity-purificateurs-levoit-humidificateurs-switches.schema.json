@@ -1,0 +1,72 @@
+{
+  "title": "Matterbridge VeSync plugin",
+  "description": "matterbridge-ai-factory-vesync v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "username": {
+      "title": "VeSync Email",
+      "description": "Email of your VeSync account (Etekcity / Levoit app)",
+      "type": "string"
+    },
+    "password": {
+      "title": "VeSync Password",
+      "description": "Password of your VeSync account",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "timeZone": {
+      "title": "Time Zone",
+      "description": "IANA time zone used for the VeSync API",
+      "type": "string",
+      "default": "America/New_York"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (s)",
+      "description": "How often to refresh device state from the cloud (minimum 30)",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
