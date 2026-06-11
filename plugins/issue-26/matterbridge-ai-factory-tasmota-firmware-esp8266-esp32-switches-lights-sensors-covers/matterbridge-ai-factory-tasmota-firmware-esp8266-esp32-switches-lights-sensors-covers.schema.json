@@ -1,0 +1,103 @@
+{
+  "title": "Matterbridge Tasmota plugin",
+  "description": "matterbridge-ai-factory-tasmota-firmware-esp8266-esp32-switches-lights-sensors-covers v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "devices": {
+      "title": "Tasmota Devices",
+      "description": "List of Tasmota devices to expose. Each device requires a host (IP) and a type.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "description": "Friendly device name",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host / IP",
+            "description": "Device IP address or hostname (e.g. 192.168.1.50)",
+            "type": "string"
+          },
+          "topic": {
+            "title": "MQTT Topic",
+            "description": "Optional Tasmota %topic% used to build a stable serial number",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "description": "Device type",
+            "type": "string",
+            "enum": ["switch", "dimmer", "rgb", "cover", "sensor"],
+            "default": "switch"
+          },
+          "powerChannel": {
+            "title": "Power Channel",
+            "description": "Relay/shutter channel number (Power1, Power2, ShutterPosition1...)",
+            "type": "number",
+            "default": 1
+          },
+          "username": {
+            "title": "Web Username",
+            "description": "Optional Tasmota web auth username",
+            "type": "string"
+          },
+          "password": {
+            "title": "Web Password",
+            "description": "Optional Tasmota web auth password",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "pollIntervalSeconds": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to poll device state over HTTP",
+      "type": "number",
+      "default": 10
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. For debugging only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "matterbridge-ai-factory-tasmota-firmware-esp8266-esp32-switches-lights-sensors-covers",
+  "type": "DynamicPlatform",
+  "devices": [
+    {
+      "name": "Salon Prise",
+      "host": "192.168.1.50",
+      "topic": "",
+      "type": "switch",
+      "powerChannel": 1,
+      "username": "",
+      "password": ""
+    }
+  ],
+  "pollIntervalSeconds": 10,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
