@@ -1,0 +1,68 @@
+{
+  "title": "Matterbridge Belkin Wemo plugin",
+  "description": "matterbridge-ai-factory-belkin-wemo-prises-switches-dimmers-capteurs by https://github.com/Luligu",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "deviceIps": {
+      "title": "Static Device IPs",
+      "description": "Wemo device IP addresses to add directly (useful when SSDP discovery is blocked).",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "discoveryTimeout": {
+      "title": "Discovery Timeout (ms)",
+      "description": "How long to listen for SSDP responses during discovery.",
+      "type": "number",
+      "default": 5000
+    },
+    "pollInterval": {
+      "title": "Poll Interval (ms)",
+      "description": "How often to refresh device state (on/off, brightness, energy, sensors).",
+      "type": "number",
+      "default": 30000
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

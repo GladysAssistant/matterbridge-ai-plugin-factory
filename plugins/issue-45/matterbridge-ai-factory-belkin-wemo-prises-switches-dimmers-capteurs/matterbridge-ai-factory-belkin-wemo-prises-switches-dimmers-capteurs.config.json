@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-belkin-wemo-prises-switches-dimmers-capteurs",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "deviceIps": [],
+  "discoveryTimeout": 5000,
+  "pollInterval": 30000,
+  "debug": false,
+  "unregisterOnShutdown": false
+}
