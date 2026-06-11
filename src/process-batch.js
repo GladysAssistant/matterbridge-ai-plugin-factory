@@ -59,8 +59,10 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
 const REPO_NAME = process.env.GITHUB_REPO_NAME;
 
-const BOT_SIGNATURE =
-  "*This is an automated response from the Matterbridge AI Plugin Factory*";
+const {
+  getIssueComments: fetchIssueComments,
+  extractLatestFeedback,
+} = require("./issue-comments");
 
 const PROCESSED_LABELS = new Set([
   "in-progress",
@@ -81,10 +83,6 @@ function envMs(name, fallback) {
 function envInt(name, fallback) {
   const v = parseInt(process.env[name] || "", 10);
   return Number.isFinite(v) && v > 0 ? v : fallback;
-}
-
-function isBotComment(comment) {
-  return (comment?.body || "").includes(BOT_SIGNATURE);
 }
 
 function issueUrl(issue) {
@@ -168,22 +166,16 @@ async function pickNextFix(skipIssueNumbers = new Set()) {
 
   for (const issue of openIssues) {
     if (skipIssueNumbers.has(issue.number)) continue;
-    const totalComments = issue.comments || 0;
-    if (totalComments === 0) continue;
+    if ((issue.comments || 0) === 0) continue;
 
-    const perPage = 100;
-    const lastPage = Math.ceil(totalComments / perPage);
-    const { data: comments } = await octokit.issues.listComments({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      issue_number: issue.number,
-      per_page: perPage,
-      page: lastPage,
-    });
-
-    if (comments.length === 0) continue;
-    const lastComment = comments[comments.length - 1];
-    if (isBotComment(lastComment)) continue;
+    const comments = await fetchIssueComments(
+      octokit,
+      REPO_OWNER,
+      REPO_NAME,
+      issue.number,
+    );
+    const feedback = extractLatestFeedback(comments);
+    if (!feedback) continue;
 
     return {
       type: "fix",
@@ -191,7 +183,7 @@ async function pickNextFix(skipIssueNumbers = new Set()) {
       jobName: `fix #${issue.number}`,
       summary: formatIssueSummary(
         issue,
-        `Feedback by {b}@${lastComment.user.login}{/b}`,
+        `Feedback by {b}@${feedback.author}{/b}`,
       ),
     };
   }

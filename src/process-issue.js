@@ -156,39 +156,16 @@ async function postComment(issueNumber, body) {
   });
 }
 
+const {
+  getIssueComments: fetchIssueComments,
+  extractLatestFeedback,
+} = require("./issue-comments");
+
 /**
- * Get comments from an issue
+ * Get comments from an issue (all pages).
  */
 async function getIssueComments(issueNumber) {
-  const { data: comments } = await octokit.issues.listComments({
-    owner: REPO_OWNER,
-    repo: REPO_NAME,
-    issue_number: issueNumber,
-  });
-  return comments;
-}
-
-/**
- * Get the latest bug report/feedback from comments
- */
-function extractLatestFeedback(comments) {
-  // Filter out bot comments and find the latest user feedback
-  const userComments = comments.filter(
-    (c) =>
-      !c.body.includes(
-        "*This is an automated response from the Matterbridge AI Plugin Factory*",
-      ),
-  );
-
-  if (userComments.length === 0) return null;
-
-  // Get the most recent user comment
-  const latestComment = userComments[userComments.length - 1];
-  return {
-    author: latestComment.user.login,
-    body: latestComment.body,
-    createdAt: latestComment.created_at,
-  };
+  return fetchIssueComments(octokit, REPO_OWNER, REPO_NAME, issueNumber);
 }
 
 /**

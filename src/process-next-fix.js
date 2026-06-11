@@ -35,6 +35,10 @@ require("dotenv").config();
 
 const { Octokit } = require("@octokit/rest");
 const { processFeedback, ensureCleanWorkspace } = require("./process-issue");
+const {
+  getIssueComments: fetchIssueComments,
+  extractLatestFeedback,
+} = require("./issue-comments");
 const { notifyStart, notifySuccess, notifyFailure } = require("./telegram");
 
 const octokit = new Octokit({
@@ -43,17 +47,6 @@ const octokit = new Octokit({
 
 const REPO_OWNER = process.env.GITHUB_REPO_OWNER;
 const REPO_NAME = process.env.GITHUB_REPO_NAME;
-
-// Signature used by the factory in every comment it posts
-const BOT_SIGNATURE =
-  "*This is an automated response from the Matterbridge AI Plugin Factory*";
-
-/**
- * Return true if the given comment was posted by the factory bot.
- */
-function isBotComment(comment) {
-  return (comment?.body || "").includes(BOT_SIGNATURE);
-}
 
 async function processNextFix() {
   await ensureCleanWorkspace();
@@ -83,31 +76,23 @@ async function processNextFix() {
   // (unlike the repo-wide comments endpoint). To get the most recent comment
   // we jump to the last page using the total comment count from the issue.
   for (const issue of openIssues) {
-    const totalComments = issue.comments || 0;
-    if (totalComments === 0) continue;
+    if ((issue.comments || 0) === 0) continue;
 
-    const perPage = 100;
-    const lastPage = Math.ceil(totalComments / perPage);
-
-    const { data: comments } = await octokit.issues.listComments({
-      owner: REPO_OWNER,
-      repo: REPO_NAME,
-      issue_number: issue.number,
-      per_page: perPage,
-      page: lastPage,
-    });
-
-    if (comments.length === 0) continue;
-
-    const lastComment = comments[comments.length - 1];
-    if (isBotComment(lastComment)) continue;
+    const comments = await fetchIssueComments(
+      octokit,
+      REPO_OWNER,
+      REPO_NAME,
+      issue.number,
+    );
+    const feedback = extractLatestFeedback(comments);
+    if (!feedback) continue;
 
     const jobName = `fix #${issue.number}`;
     const issueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/${issue.number}`;
-    const summary = `{b}${issue.title}{/b}\nFeedback by {b}@${lastComment.user.login}{/b}\n{link:${issueUrl}}${issueUrl}{/link}`;
+    const summary = `{b}${issue.title}{/b}\nFeedback by {b}@${feedback.author}{/b}\n{link:${issueUrl}}${issueUrl}{/link}`;
 
     console.log(
-      `➡️  Fixing issue #${issue.number}: ${issue.title} (last feedback by @${lastComment.user.login} at ${lastComment.created_at})`,
+      `➡️  Fixing issue #${issue.number}: ${issue.title} (feedback by @${feedback.author} at ${feedback.createdAt})`,
     );
     await notifyStart(jobName, summary);
 
