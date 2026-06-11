@@ -1,0 +1,19 @@
+{
+  "name": "matterbridge-ai-factory-freebox-player-delta-devialet-r-volution-api-freebox-os",
+  "type": "DynamicPlatform",
+  "host": "mafreebox.freebox.fr",
+  "useHttps": false,
+  "appId": "org.gladys.matterbridge.freebox",
+  "appName": "Matterbridge Freebox",
+  "appVersion": "1.0.0",
+  "deviceName": "Matterbridge",
+  "appToken": "",
+  "powerProbePort": 7000,
+  "pollInterval": 15,
+  "enableServer": false,
+  "allowReboot": false,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

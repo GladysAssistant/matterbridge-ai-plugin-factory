@@ -1,0 +1,115 @@
+{
+  "title": "Matterbridge Freebox Player",
+  "description": "matterbridge-ai-factory-freebox-player-delta-devialet-r-volution-api-freebox-os v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Freebox host",
+      "description": "Hostname or IP of the Freebox (default mafreebox.freebox.fr).",
+      "type": "string",
+      "default": "mafreebox.freebox.fr"
+    },
+    "useHttps": {
+      "title": "Use HTTPS",
+      "description": "Use HTTPS instead of HTTP to reach the Freebox API (self-signed certificate accepted).",
+      "type": "boolean",
+      "default": false
+    },
+    "appId": {
+      "title": "App ID",
+      "description": "Application identifier registered against the Freebox.",
+      "type": "string",
+      "default": "org.gladys.matterbridge.freebox"
+    },
+    "appName": {
+      "title": "App name",
+      "description": "Application name shown on the Freebox front panel during authorization.",
+      "type": "string",
+      "default": "Matterbridge Freebox"
+    },
+    "appVersion": {
+      "title": "App version",
+      "description": "Application version string.",
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "deviceName": {
+      "title": "Device name",
+      "description": "Device name shown on the Freebox front panel.",
+      "type": "string",
+      "default": "Matterbridge"
+    },
+    "appToken": {
+      "title": "App token",
+      "description": "Persisted Freebox application token. Leave empty to trigger the authorization flow (physical validation on the Freebox required). Filled automatically once granted.",
+      "type": "string",
+      "default": ""
+    },
+    "powerProbePort": {
+      "title": "Power probe TCP port",
+      "description": "TCP port probed to detect Player power state (7000 = AirPlay, alternative 54243).",
+      "type": "number",
+      "default": 7000
+    },
+    "pollInterval": {
+      "title": "Poll interval (seconds)",
+      "description": "How often to poll player/server status (minimum 5 seconds).",
+      "type": "number",
+      "default": 15
+    },
+    "enableServer": {
+      "title": "Expose Freebox Server",
+      "description": "Expose the Freebox Server (CPU temperature, WAN connection state, optional reboot).",
+      "type": "boolean",
+      "default": false
+    },
+    "allowReboot": {
+      "title": "Allow reboot",
+      "description": "DANGEROUS: expose a switch that reboots the Freebox Server.",
+      "type": "boolean",
+      "default": false
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
