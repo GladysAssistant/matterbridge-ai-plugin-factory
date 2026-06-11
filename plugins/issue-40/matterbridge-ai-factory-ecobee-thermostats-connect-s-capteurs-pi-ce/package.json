@@ -1,0 +1,54 @@
+{
+  "name": "matterbridge-ai-factory-ecobee-thermostats-connect-s-capteurs-pi-ce",
+  "version": "1.0.0",
+  "description": "Matterbridge plugin for Ecobee thermostats and room sensors (cloud API, OAuth2 PIN flow)",
+  "author": "https://github.com/Luligu",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Luligu/matterbridge",
+  "keywords": [
+    "matterbridge",
+    "plugin",
+    "ecobee",
+    "thermostat",
+    "matter",
+    "smarthome",
+    "homeassistant",
+    "gladysassistant"
+  ],
+  "type": "module",
+  "main": "dist/module.js",
+  "types": "dist/module.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/module.js",
+      "types": "./dist/module.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=20.19.0 <21.0.0 || >=22.13.0 <23.0.0 || >=24.0.0 <25.0.0 || >=26.0.0 <27.0.0"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "*.config.json",
+    "*.schema.json"
+  ],
+  "scripts": {
+    "start": "matterbridge",
+    "build": "tsc --project tsconfig.build.json",
+    "clean": "npx shx rm -rf *.tsbuildinfo dist",
+    "cleanBuild": "npm run clean && npm run build",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "dev:link": "npm link --no-fund --no-audit matterbridge",
+    "matterbridge:add": "matterbridge -add .",
+    "matterbridge:remove": "matterbridge -remove ."
+  },
+  "dependencies": {
+    "node-ansi-logger": "3.2.1",
+    "node-persist-manager": "2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.1",
+    "typescript": "6.0.3"
+  }
+}

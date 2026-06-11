@@ -1,0 +1,70 @@
+{
+  "title": "Matterbridge Ecobee plugin",
+  "description": "Ecobee thermostats and room sensors. Register an app at https://www.ecobee.com/developers/ to obtain an API Key (client_id), then enter it below. On first start the plugin logs a 4-character PIN: enter it under your Ecobee account at https://www.ecobee.com/consumerportal/index.html (My Apps > Add Application). Tokens are persisted and refreshed automatically.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "apiKey": {
+      "title": "Ecobee API Key (client_id)",
+      "description": "The API Key (client_id) of your registered Ecobee developer application using the ecobee PIN authorization (scope smartWrite).",
+      "type": "string"
+    },
+    "exposeRoomSensors": {
+      "title": "Expose Room Sensors",
+      "description": "Expose Ecobee remote room sensors as Matter temperature / occupancy / humidity sensors.",
+      "type": "boolean",
+      "default": true
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to poll the Ecobee cloud API for thermostat and sensor updates. Minimum 60 seconds.",
+      "type": "number",
+      "default": 180
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-ecobee-thermostats-connect-s-capteurs-pi-ce",
+  "type": "DynamicPlatform",
+  "apiKey": "",
+  "exposeRoomSensors": true,
+  "pollInterval": 180,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
