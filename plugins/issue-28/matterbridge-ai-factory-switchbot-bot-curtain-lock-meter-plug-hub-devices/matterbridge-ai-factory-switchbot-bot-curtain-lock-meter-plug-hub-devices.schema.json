@@ -1,0 +1,72 @@
+{
+  "title": "Matterbridge SwitchBot",
+  "description": "SwitchBot plugin (OpenAPI cloud) for Matterbridge",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "token": {
+      "title": "SwitchBot Token",
+      "description": "Open SwitchBot app > Profile > Preferences > Developer Options to obtain your token.",
+      "type": "string"
+    },
+    "secret": {
+      "title": "SwitchBot Secret",
+      "description": "Secret key paired with your token (Developer Options).",
+      "type": "string"
+    },
+    "pollingInterval": {
+      "title": "Polling Interval (seconds)",
+      "description": "How often to poll device status. Minimum 60s to respect the cloud rate limit (10000 req/day).",
+      "type": "number",
+      "default": 60
+    },
+    "botMode": {
+      "title": "Bot Mode",
+      "description": "How a SwitchBot Bot is controlled: 'switch' uses turnOn/turnOff, 'press' sends a momentary press for both on and off.",
+      "type": "string",
+      "enum": ["switch", "press"],
+      "default": "switch"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Debug only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

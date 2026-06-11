@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-switchbot-bot-curtain-lock-meter-plug-hub-devices",
+  "type": "DynamicPlatform",
+  "token": "",
+  "secret": "",
+  "pollingInterval": 60,
+  "botMode": "switch",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
