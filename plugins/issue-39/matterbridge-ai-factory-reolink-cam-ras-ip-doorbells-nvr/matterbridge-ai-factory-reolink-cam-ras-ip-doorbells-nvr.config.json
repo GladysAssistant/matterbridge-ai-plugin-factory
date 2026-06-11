@@ -1,0 +1,15 @@
+{
+  "name": "matterbridge-ai-factory-reolink-cam-ras-ip-doorbells-nvr",
+  "type": "DynamicPlatform",
+  "host": "192.168.1.100",
+  "username": "admin",
+  "password": "",
+  "useHttps": true,
+  "port": 443,
+  "channels": 1,
+  "pollInterval": 30,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

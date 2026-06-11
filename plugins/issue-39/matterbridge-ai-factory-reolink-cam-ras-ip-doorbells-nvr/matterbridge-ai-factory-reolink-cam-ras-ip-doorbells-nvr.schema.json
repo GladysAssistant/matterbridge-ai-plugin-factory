@@ -1,0 +1,90 @@
+{
+  "title": "Matterbridge Reolink plugin",
+  "description": "matterbridge-ai-factory-reolink-cam-ras-ip-doorbells-nvr v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Host",
+      "description": "Reolink camera or NVR IP address / hostname",
+      "type": "string"
+    },
+    "username": {
+      "title": "Username",
+      "description": "Reolink account username",
+      "type": "string",
+      "default": "admin"
+    },
+    "password": {
+      "title": "Password",
+      "description": "Reolink account password",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "useHttps": {
+      "title": "Use HTTPS",
+      "description": "Connect over HTTPS (recommended)",
+      "type": "boolean",
+      "default": true
+    },
+    "port": {
+      "title": "Port",
+      "description": "HTTP/HTTPS port (80 or 443 by default)",
+      "type": "number",
+      "default": 443
+    },
+    "channels": {
+      "title": "Channels (fallback)",
+      "description": "Number of channels to expose if discovery fails (NVR/multi-channel)",
+      "type": "number",
+      "default": 1
+    },
+    "pollInterval": {
+      "title": "Poll interval (s)",
+      "description": "How often to poll device state, in seconds",
+      "type": "number",
+      "default": 30
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
