@@ -1,0 +1,15 @@
+{
+  "name": "matterbridge-ai-factory-august-yale-serrures-connect-es-keypad-bridge",
+  "type": "DynamicPlatform",
+  "apiKey": "",
+  "installID": "",
+  "augustID": "",
+  "IDType": "email",
+  "password": "",
+  "validationCode": "",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

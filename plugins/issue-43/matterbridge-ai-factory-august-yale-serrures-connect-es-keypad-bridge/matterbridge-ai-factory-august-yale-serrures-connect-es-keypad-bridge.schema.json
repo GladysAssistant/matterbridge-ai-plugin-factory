@@ -1,0 +1,88 @@
+{
+  "title": "Matterbridge August / Yale Lock plugin",
+  "description": "matterbridge-ai-factory-august-yale-serrures-connect-es-keypad-bridge by https://github.com/Luligu",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "apiKey": {
+      "title": "August API Key",
+      "description": "August/Yale API key (a.k.a. kease API key) used to authenticate against the August cloud.",
+      "type": "string"
+    },
+    "installID": {
+      "title": "Install ID",
+      "description": "A stable, unique installation id (UUID). Generate once and keep it constant.",
+      "type": "string"
+    },
+    "augustID": {
+      "title": "August ID",
+      "description": "Your August account email address or phone number.",
+      "type": "string"
+    },
+    "IDType": {
+      "title": "ID Type",
+      "description": "Type of the August ID.",
+      "type": "string",
+      "enum": ["email", "phone"],
+      "default": "email"
+    },
+    "password": {
+      "title": "Password",
+      "description": "Your August account password.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "validationCode": {
+      "title": "2FA Validation Code",
+      "description": "Leave empty on first run to request a 6-digit code sent to your August ID. Then enter the code here and restart to validate the session.",
+      "type": "string"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to poll the August cloud for lock/door/battery state.",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the locks in the list will be exposed. If the list is empty, all the locks will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The locks in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
