@@ -8,6 +8,7 @@
     "process-issue": "node src/process-issue.js",
     "process-batch": "node src/process-batch.js",
     "cleanup-issue-comments": "node scripts/cleanup-issue-comments.js",
+    "recent-plugins": "node scripts/recent-plugins.js",
     "validate-request": "node src/validate-request.js",
     "build-plugin": "node src/build-plugin.js",
     "test": "jest",
