@@ -1,0 +1,14 @@
+{
+  "name": "matterbridge-ai-factory-viessmann-vicare-chaudi-res-pompes-chaleur-chauffe-eau",
+  "type": "DynamicPlatform",
+  "clientId": "",
+  "refreshToken": "",
+  "accessToken": "",
+  "apiBaseUrl": "https://api.viessmann-climatesolutions.com/iot/v2",
+  "pollInterval": 120,
+  "demoMode": false,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

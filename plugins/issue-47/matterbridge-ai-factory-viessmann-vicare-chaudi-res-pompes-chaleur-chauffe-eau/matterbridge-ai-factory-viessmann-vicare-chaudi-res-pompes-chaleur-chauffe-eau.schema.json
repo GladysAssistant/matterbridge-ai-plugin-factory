@@ -1,0 +1,82 @@
+{
+  "title": "Matterbridge Viessmann ViCare",
+  "description": "matterbridge-ai-factory-viessmann-vicare v. 1.0.0 — chaudières, pompes à chaleur, chauffe-eau",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "clientId": {
+      "title": "ViCare Client ID",
+      "description": "OAuth2 client id created on https://app.developer.viessmann-climatesolutions.com (reCAPTCHA disabled, redirect URI vicare://oauth-callback/everest).",
+      "type": "string"
+    },
+    "refreshToken": {
+      "title": "Refresh Token",
+      "description": "OAuth2 refresh token obtained via the Authorization Code + PKCE flow (offline_access scope). Used to obtain access tokens automatically.",
+      "type": "string"
+    },
+    "accessToken": {
+      "title": "Access Token (optional)",
+      "description": "Optional still-valid access token to avoid an initial refresh.",
+      "type": "string"
+    },
+    "apiBaseUrl": {
+      "title": "API Base URL",
+      "description": "Viessmann IoT API base URL.",
+      "type": "string",
+      "default": "https://api.viessmann-climatesolutions.com/iot/v2"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (s)",
+      "description": "How often to refresh ViCare features. Minimum 60s to respect API rate limits.",
+      "type": "number",
+      "default": 120
+    },
+    "demoMode": {
+      "title": "Demo Mode",
+      "description": "Create sample devices without connecting to the cloud (for previewing/testing).",
+      "type": "boolean",
+      "default": false
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Debugging only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
