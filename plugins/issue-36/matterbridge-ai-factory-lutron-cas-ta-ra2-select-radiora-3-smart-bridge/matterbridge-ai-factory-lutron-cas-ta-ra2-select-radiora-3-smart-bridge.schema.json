@@ -1,0 +1,73 @@
+{
+  "title": "Lutron Caséta / RA2 Select / RadioRA 3 (Smart Bridge)",
+  "description": "matterbridge-ai-factory-lutron-cas-ta-ra2-select-radiora-3-smart-bridge v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "Bridge IP Address",
+      "description": "IP address or hostname of the Lutron Smart Bridge.",
+      "type": "string"
+    },
+    "keyfile": {
+      "title": "Client Key File",
+      "description": "Path to the client private key (caseta.key). Generate with: python -m pylutron_caseta.cli <bridge-ip> and press the bridge button when prompted.",
+      "type": "string"
+    },
+    "certfile": {
+      "title": "Client Certificate File",
+      "description": "Path to the client certificate (caseta.crt).",
+      "type": "string"
+    },
+    "ca_certs": {
+      "title": "Bridge CA Certificate File",
+      "description": "Path to the bridge CA certificate (caseta-bridge.crt).",
+      "type": "string"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

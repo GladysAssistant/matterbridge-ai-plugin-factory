@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-lutron-cas-ta-ra2-select-radiora-3-smart-bridge",
+  "type": "DynamicPlatform",
+  "host": "",
+  "keyfile": "",
+  "certfile": "",
+  "ca_certs": "",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
