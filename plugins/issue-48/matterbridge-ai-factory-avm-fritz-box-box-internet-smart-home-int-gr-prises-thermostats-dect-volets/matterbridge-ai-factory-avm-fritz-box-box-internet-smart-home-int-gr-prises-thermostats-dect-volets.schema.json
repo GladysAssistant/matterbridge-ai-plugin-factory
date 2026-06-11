@@ -1,0 +1,74 @@
+{
+  "title": "AVM FRITZ!Box DECT Smart Home",
+  "description": "matterbridge-ai-factory-avm-fritz-box v. 1.0.0 - FRITZ!DECT plugs, thermostats, lights, sensors and roller shutters via the AHA-HTTP interface.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "host": {
+      "title": "FRITZ!Box Host",
+      "description": "IP address or hostname of the FRITZ!Box (e.g. 192.168.1.1 or fritz.box).",
+      "type": "string",
+      "default": "192.168.1.1"
+    },
+    "username": {
+      "title": "Username",
+      "description": "FRITZ!Box user name. Leave empty if your box uses password-only login.",
+      "type": "string",
+      "default": ""
+    },
+    "password": {
+      "title": "Password",
+      "description": "FRITZ!Box password with Smart Home permission.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often device states are refreshed from the FRITZ!Box.",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown (debugging only).",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": ["host", "password"]
+}
