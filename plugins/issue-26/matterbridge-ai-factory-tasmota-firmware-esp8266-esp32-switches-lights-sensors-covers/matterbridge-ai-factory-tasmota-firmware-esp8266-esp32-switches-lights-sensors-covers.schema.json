@@ -61,7 +61,43 @@
             "title": "Web Password",
             "description": "Optional Tasmota web auth password",
             "type": "string"
+          },
+          "energyMonitoring": {
+            "title": "Energy Monitoring",
+            "description": "Expose electrical power/energy measurement (smart plugs with an ENERGY block)",
+            "type": "boolean",
+            "default": false
           }
+        }
+      }
+    },
+    "discovery": {
+      "title": "Automatic Discovery",
+      "description": "Scan an IPv4 range over HTTP to auto-discover Tasmota devices.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "Enable Discovery",
+          "description": "Enable automatic IP range scan discovery",
+          "type": "boolean",
+          "default": false
+        },
+        "subnet": {
+          "title": "Subnet",
+          "description": "First three IPv4 octets to scan, e.g. \"192.168.1\"",
+          "type": "string"
+        },
+        "start": {
+          "title": "Range Start",
+          "description": "First host octet to scan (1-254)",
+          "type": "number",
+          "default": 1
+        },
+        "end": {
+          "title": "Range End",
+          "description": "Last host octet to scan (1-254)",
+          "type": "number",
+          "default": 254
         }
       }
     },
