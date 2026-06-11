@@ -1,0 +1,92 @@
+{
+  "title": "Govee BLE (lights & sensors)",
+  "description": "matterbridge-ai-factory-govee-ble-ampoules-bandes-led-capteurs-bluetooth-low-energy v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "devices": {
+      "title": "Govee BLE devices",
+      "description": "List of Govee BLE devices to expose. Provide the BLE MAC address (visible in the Govee app or via a BLE scan).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "description": "Friendly name shown in Matter controllers.",
+            "type": "string"
+          },
+          "address": {
+            "title": "BLE MAC address",
+            "description": "Bluetooth address, e.g. AA:BB:CC:DD:EE:FF.",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "description": "Device kind: light or sensor.",
+            "type": "string",
+            "enum": ["light", "sensor"],
+            "default": "light"
+          },
+          "model": {
+            "title": "Govee model",
+            "description": "Govee model code (e.g. H6159, H5179, H5121, H5123, H5054, H5127). Determines capabilities and advertisement parsing.",
+            "type": "string"
+          }
+        },
+        "required": ["name", "address", "type"]
+      }
+    },
+    "scan_interval_seconds": {
+      "title": "BLE scan interval (seconds)",
+      "description": "How often to (re)start BLE scanning to keep sensor data fresh.",
+      "type": "number",
+      "default": 30
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

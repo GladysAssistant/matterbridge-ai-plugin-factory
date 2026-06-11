@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-govee-ble-ampoules-bandes-led-capteurs-bluetooth-low-energy",
+  "type": "DynamicPlatform",
+  "devices": [],
+  "scan_interval_seconds": 30,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
