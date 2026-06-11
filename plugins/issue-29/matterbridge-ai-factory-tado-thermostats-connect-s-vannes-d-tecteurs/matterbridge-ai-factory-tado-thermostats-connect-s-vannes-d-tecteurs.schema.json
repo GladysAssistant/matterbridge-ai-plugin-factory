@@ -1,0 +1,66 @@
+{
+  "title": "Matterbridge Tado plugin",
+  "description": "Tado (thermostats connectés, vannes, détecteurs). On first start, watch the Matterbridge logs for the pairing code and URL to authorize this plugin with your Tado account (OAuth2 Device Code Flow).",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "homeId": {
+      "title": "Home Id",
+      "description": "Tado home id to expose. Leave 0 to auto-select your first home.",
+      "type": "number",
+      "default": 0
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to refresh zone state from the Tado API. Minimum and recommended 60s to respect Tado rate limits.",
+      "type": "number",
+      "default": 120,
+      "minimum": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the zones in the list will be exposed. If the list is empty, all the zones will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The zones in the list will not be exposed. If the list is empty, no zones will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

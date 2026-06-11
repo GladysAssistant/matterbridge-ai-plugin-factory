@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-tado-thermostats-connect-s-vannes-d-tecteurs",
+  "type": "DynamicPlatform",
+  "homeId": 0,
+  "pollInterval": 120,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
