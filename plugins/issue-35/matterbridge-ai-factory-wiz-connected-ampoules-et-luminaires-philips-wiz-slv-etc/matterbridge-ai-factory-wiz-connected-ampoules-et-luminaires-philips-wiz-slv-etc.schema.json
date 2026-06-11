@@ -1,0 +1,81 @@
+{
+  "title": "Matterbridge WiZ Connected plugin",
+  "description": "matterbridge-ai-factory-wiz-connected-ampoules-et-luminaires-philips-wiz-slv-etc v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "devices": {
+      "title": "WiZ Devices",
+      "description": "List of WiZ devices to expose. Each needs a name and a LAN IP address.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "title": "Name", "type": "string" },
+          "ip": { "title": "IP Address", "type": "string" },
+          "type": {
+            "title": "Device Type",
+            "type": "string",
+            "enum": ["rgbcw", "cct", "dimmable", "plug"],
+            "default": "rgbcw",
+            "description": "rgbcw = RGB + tunable white, cct = tunable white only, dimmable = white only, plug = smart plug"
+          }
+        },
+        "required": ["name", "ip"]
+      }
+    },
+    "discovery": {
+      "title": "Auto Discovery",
+      "description": "Discover WiZ devices via UDP broadcast on the LAN (requires host network).",
+      "type": "boolean",
+      "default": false
+    },
+    "pollInterval": {
+      "title": "Poll Interval (s)",
+      "description": "How often to poll device state over UDP.",
+      "type": "number",
+      "default": 60
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Debug only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
