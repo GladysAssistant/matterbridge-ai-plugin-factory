@@ -1,0 +1,75 @@
+{
+  "title": "Matterbridge Withings plugin",
+  "description": "matterbridge-ai-factory-withings-balances-tensiom-tres-montres-capteurs-sommeil v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "clientId": {
+      "title": "Withings Client ID",
+      "description": "OAuth2 client id from your app at https://developer.withings.com/",
+      "type": "string"
+    },
+    "clientSecret": {
+      "title": "Withings Client Secret",
+      "description": "OAuth2 client secret from your Withings app.",
+      "type": "string"
+    },
+    "accessToken": {
+      "title": "Access Token",
+      "description": "OAuth2 access token (auto-refreshed). Leave empty initially.",
+      "type": "string"
+    },
+    "refreshToken": {
+      "title": "Refresh Token",
+      "description": "OAuth2 refresh token obtained from the Authorization Code flow (scopes: user.metrics, user.activity, user.sleepevents).",
+      "type": "string"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (minutes)",
+      "description": "How often to poll the Withings cloud for new measurements (minimum 5).",
+      "type": "number",
+      "default": 15
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

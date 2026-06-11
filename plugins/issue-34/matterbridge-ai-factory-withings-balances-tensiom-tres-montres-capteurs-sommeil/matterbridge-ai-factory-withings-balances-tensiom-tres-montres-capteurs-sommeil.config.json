@@ -1,0 +1,13 @@
+{
+  "name": "matterbridge-ai-factory-withings-balances-tensiom-tres-montres-capteurs-sommeil",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "clientId": "",
+  "clientSecret": "",
+  "accessToken": "",
+  "refreshToken": "",
+  "pollInterval": 15,
+  "debug": false,
+  "unregisterOnShutdown": false
+}
