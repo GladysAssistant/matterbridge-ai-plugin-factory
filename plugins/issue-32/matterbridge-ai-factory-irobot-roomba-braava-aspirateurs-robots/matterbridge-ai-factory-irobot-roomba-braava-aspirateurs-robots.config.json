@@ -1,0 +1,15 @@
+{
+  "name": "matterbridge-ai-factory-irobot-roomba-braava-aspirateurs-robots",
+  "type": "DynamicPlatform",
+  "cloud": {
+    "email": "",
+    "password": "",
+    "countryCode": "US"
+  },
+  "devices": [],
+  "pollInterval": 30,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}

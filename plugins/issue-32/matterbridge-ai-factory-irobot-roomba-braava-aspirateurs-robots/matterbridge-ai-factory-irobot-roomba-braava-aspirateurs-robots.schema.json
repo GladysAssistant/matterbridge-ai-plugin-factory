@@ -1,0 +1,81 @@
+{
+  "title": "iRobot Roomba / Braava",
+  "description": "Expose iRobot Roomba and Braava robots as Matter Robotic Vacuum Cleaners over local MQTT.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "cloud": {
+      "title": "iRobot Cloud (optional)",
+      "description": "Cloud-assisted setup. The plugin fetches each robot's local BLID and MQTT password from the iRobot account.",
+      "type": "object",
+      "properties": {
+        "email": { "title": "iRobot account email", "type": "string" },
+        "password": { "title": "iRobot account password", "type": "string", "ui:widget": "password" },
+        "countryCode": { "title": "Country code", "type": "string", "default": "US" }
+      }
+    },
+    "devices": {
+      "title": "Robots",
+      "description": "List of robots on your LAN.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "title": "Name", "type": "string" },
+          "ipAddress": { "title": "IP address", "type": "string" },
+          "blid": { "title": "BLID (local only)", "type": "string" },
+          "password": { "title": "Local password (local only)", "type": "string", "ui:widget": "password" },
+          "serverMode": { "title": "Standalone device (Siri/Apple Home)", "type": "boolean", "default": false }
+        },
+        "required": ["name", "ipAddress"]
+      }
+    },
+    "pollInterval": {
+      "title": "Poll interval (seconds)",
+      "description": "Fallback poll interval for robot state.",
+      "type": "number",
+      "default": 30
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
