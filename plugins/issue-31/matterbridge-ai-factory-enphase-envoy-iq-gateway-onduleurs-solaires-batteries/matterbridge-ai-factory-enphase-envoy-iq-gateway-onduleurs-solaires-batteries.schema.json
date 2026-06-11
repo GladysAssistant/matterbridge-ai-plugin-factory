@@ -1,0 +1,62 @@
+{
+  "title": "Matterbridge Enphase Envoy / IQ Gateway",
+  "description": "Read-only Matter sensors for Enphase Envoy / IQ Gateway: solar production, grid consumption, battery and gateway status.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true
+    },
+    "type": {
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true
+    },
+    "envoyIp": {
+      "description": "IP address or hostname of the Envoy / IQ Gateway on your local network",
+      "type": "string"
+    },
+    "serialNumber": {
+      "description": "Envoy / IQ Gateway serial number (required to obtain an Enlighten token on firmware >= 7.0)",
+      "type": "string"
+    },
+    "enlightenEmail": {
+      "description": "Enlighten cloud account email (firmware >= 7.0 token auth)",
+      "type": "string"
+    },
+    "enlightenPassword": {
+      "description": "Enlighten cloud account password (firmware >= 7.0 token auth)",
+      "type": "string"
+    },
+    "token": {
+      "description": "Optional pre-generated Enlighten JWT token (used instead of email/password)",
+      "type": "string"
+    },
+    "installerUser": {
+      "description": "Firmware < 7.0: use the local installer account (no token required)",
+      "type": "boolean",
+      "default": false
+    },
+    "hasBattery": {
+      "description": "Expose a battery storage device (IQ Battery installed)",
+      "type": "boolean",
+      "default": false
+    },
+    "pollInterval": {
+      "description": "Polling interval in seconds (minimum 15)",
+      "type": "number",
+      "default": 30
+    },
+    "unregisterOnShutdown": {
+      "description": "Unregister all devices on shutdown (development only)",
+      "type": "boolean",
+      "default": false
+    },
+    "debug": {
+      "description": "Enable debug logging",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

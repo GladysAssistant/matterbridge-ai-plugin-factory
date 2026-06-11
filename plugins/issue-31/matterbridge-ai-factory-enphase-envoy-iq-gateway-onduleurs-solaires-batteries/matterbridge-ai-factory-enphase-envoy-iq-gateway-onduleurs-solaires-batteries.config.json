@@ -1,0 +1,14 @@
+{
+  "name": "matterbridge-ai-factory-enphase-envoy-iq-gateway-onduleurs-solaires-batteries",
+  "type": "DynamicPlatform",
+  "envoyIp": "",
+  "serialNumber": "",
+  "enlightenEmail": "",
+  "enlightenPassword": "",
+  "token": "",
+  "installerUser": false,
+  "hasBattery": false,
+  "pollInterval": 30,
+  "unregisterOnShutdown": false,
+  "debug": false
+}
