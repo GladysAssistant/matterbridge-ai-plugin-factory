@@ -1,0 +1,72 @@
+{
+  "title": "Matterbridge Netatmo plugin",
+  "description": "Netatmo (stations météo, thermostats, caméras, détecteurs) integration for Matterbridge",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "clientId": {
+      "title": "Netatmo Client ID",
+      "description": "OAuth2 client_id from an app created at https://dev.netatmo.com/",
+      "type": "string"
+    },
+    "clientSecret": {
+      "title": "Netatmo Client Secret",
+      "description": "OAuth2 client_secret from your Netatmo app",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "refreshToken": {
+      "title": "Netatmo Refresh Token",
+      "description": "Initial OAuth2 refresh_token (scopes: read_station read_thermostat write_thermostat read_camera). It is rotated and re-persisted automatically.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "pollIntervalSeconds": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to poll the Netatmo cloud API (minimum 60).",
+      "type": "number",
+      "default": 300
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. For debugging only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

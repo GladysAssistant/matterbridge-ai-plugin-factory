@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-netatmo-stations-m-t-o-thermostats-cam-ras-d-tecteurs",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "clientId": "",
+  "clientSecret": "",
+  "refreshToken": "",
+  "pollIntervalSeconds": 300,
+  "debug": false,
+  "unregisterOnShutdown": false
+}
