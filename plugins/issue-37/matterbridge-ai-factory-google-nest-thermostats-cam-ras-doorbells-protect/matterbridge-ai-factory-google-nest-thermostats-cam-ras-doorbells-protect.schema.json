@@ -1,0 +1,75 @@
+{
+  "title": "Matterbridge Google Nest plugin",
+  "description": "Google Nest (thermostats, cameras, doorbells, Protect) via the Smart Device Management API",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "projectId": {
+      "title": "Device Access Project ID",
+      "description": "The Google Device Access project (enterprise) ID.",
+      "type": "string"
+    },
+    "clientId": {
+      "title": "OAuth Client ID",
+      "description": "Google Cloud OAuth 2.0 client ID.",
+      "type": "string"
+    },
+    "clientSecret": {
+      "title": "OAuth Client Secret",
+      "description": "Google Cloud OAuth 2.0 client secret.",
+      "type": "string"
+    },
+    "refreshToken": {
+      "title": "OAuth Refresh Token",
+      "description": "OAuth 2.0 refresh token obtained with the sdm.service scope.",
+      "type": "string"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (s)",
+      "description": "How often to poll the SDM API for device state, in seconds (minimum 30).",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. For debugging only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

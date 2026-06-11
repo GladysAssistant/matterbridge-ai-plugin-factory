@@ -1,0 +1,13 @@
+{
+  "name": "matterbridge-ai-factory-google-nest-thermostats-cam-ras-doorbells-protect",
+  "type": "DynamicPlatform",
+  "projectId": "",
+  "clientId": "",
+  "clientSecret": "",
+  "refreshToken": "",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
