@@ -52,6 +52,7 @@ const {
   clearPause,
   recoverStaleInProgressIssues,
 } = require("./factory-state");
+const { parseUsageLimitResumeMs } = require("./factory-errors");
 const { notifyStart, notifySuccess, notifyFailure, notifyInfo } = require("./telegram");
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
@@ -65,6 +66,7 @@ const PROCESSED_LABELS = new Set([
   "in-progress",
   "ready-for-testing",
   "completed",
+  "error",
 ]);
 
 const DEFAULT_MAX_RUNTIME_MS = 4.5 * 60 * 60 * 1000;
@@ -114,13 +116,13 @@ async function getIssueLabels(issueNumber) {
 /**
  * Pick the next job. Fixes (user waiting) take priority over new generations.
  */
-async function pickNextJob() {
-  const fix = await pickNextFix();
+async function pickNextJob(skipIssueNumbers = new Set()) {
+  const fix = await pickNextFix(skipIssueNumbers);
   if (fix) return fix;
-  return pickNextGeneration();
+  return pickNextGeneration(skipIssueNumbers);
 }
 
-async function pickNextGeneration() {
+async function pickNextGeneration(skipIssueNumbers = new Set()) {
   const issues = await octokit.paginate(octokit.issues.listForRepo, {
     owner: REPO_OWNER,
     repo: REPO_NAME,
@@ -132,6 +134,7 @@ async function pickNextGeneration() {
 
   const candidates = issues.filter((issue) => {
     if (issue.pull_request) return false;
+    if (skipIssueNumbers.has(issue.number)) return false;
     const labels = (issue.labels || []).map((l) =>
       typeof l === "string" ? l : l.name,
     );
@@ -149,7 +152,7 @@ async function pickNextGeneration() {
   };
 }
 
-async function pickNextFix() {
+async function pickNextFix(skipIssueNumbers = new Set()) {
   const issues = await octokit.paginate(octokit.issues.listForRepo, {
     owner: REPO_OWNER,
     repo: REPO_NAME,
@@ -164,6 +167,7 @@ async function pickNextFix() {
   if (openIssues.length === 0) return null;
 
   for (const issue of openIssues) {
+    if (skipIssueNumbers.has(issue.number)) continue;
     const totalComments = issue.comments || 0;
     if (totalComments === 0) continue;
 
@@ -209,20 +213,20 @@ async function runJob(job) {
   return "unknown";
 }
 
-async function handleCreditsExhausted(job, err) {
-  const pauseMs = envMs("FACTORY_PAUSE_DURATION_MS", 5 * 60 * 60 * 1000);
-  const resumeAfter = setPause("credits_exhausted", {
+async function handleUsageLimit(job, err) {
+  const defaultPause = envMs("FACTORY_PAUSE_DURATION_MS", 5 * 60 * 60 * 1000);
+  const parsedPause = parseUsageLimitResumeMs(err.output || err.message);
+  const pauseMs = parsedPause ?? defaultPause;
+
+  const resumeAfter = setPause("usage_limit", {
     resumeAfterMs: pauseMs,
     lastIssue: job?.issue?.number ?? null,
   });
 
-  const details =
-    `Credits exhausted on {b}${job.jobName}{/b}\n` +
-    `Paused until {code}${resumeAfter}{/code}\n` +
-    `{code}${err.message}{/code}`;
-
-  await notifyInfo("factory paused", details);
-  console.log(`⏸️  Factory paused until ${resumeAfter}`);
+  // Silent pause — no Telegram (hourly cron would spam hundreds of alerts).
+  console.log(
+    `⏸️  Usage/session limit hit on ${job?.jobName ?? "unknown"} — factory paused until ${resumeAfter}`,
+  );
 }
 
 async function processBatch({ dryRun = false } = {}) {
@@ -273,6 +277,7 @@ async function processBatch({ dryRun = false } = {}) {
   let completed = 0;
   let failed = 0;
   let skipped = 0;
+  const attemptedIssues = new Set();
 
   while (completed < maxPlugins) {
     if (!canStartAnotherJob(startedAt, maxRuntimeMs, minJobMs)) {
@@ -283,11 +288,13 @@ async function processBatch({ dryRun = false } = {}) {
       break;
     }
 
-    const job = await pickNextJob();
+    const job = await pickNextJob(attemptedIssues);
     if (!job) {
       console.log("✅ Queue empty. Nothing left to process.");
       break;
     }
+
+    attemptedIssues.add(job.issue.number);
 
     const leftMin = Math.round(remainingMs(startedAt, maxRuntimeMs) / 60000);
     console.log(
@@ -312,9 +319,9 @@ async function processBatch({ dryRun = false } = {}) {
       }
     } catch (err) {
       if (err instanceof CreditsExhaustedError) {
-        await handleCreditsExhausted(job, err);
+        await handleUsageLimit(job, err);
         return {
-          creditsExhausted: true,
+          usageLimitHit: true,
           completed,
           failed,
           skipped,
@@ -365,8 +372,8 @@ async function main() {
   const dryRun = args.includes("--dry-run");
   const result = await processBatch({ dryRun });
 
-  if (result.creditsExhausted) {
-    process.exit(2);
+  if (result.usageLimitHit) {
+    process.exit(0);
   }
 }
 

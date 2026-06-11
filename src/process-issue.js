@@ -746,6 +746,20 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
         // Collect a human-readable transcript of Claude's actions so we can
         // include it in the GitHub comment posted at the end of the run.
         const transcript = [];
+        const cliOutput = [];
+        let usageLimitHit = false;
+
+        const rejectUsageLimit = (output) => {
+          if (usageLimitHit) return;
+          usageLimitHit = true;
+          reject(
+            new CreditsExhaustedError(
+              "Claude usage or session limit reached",
+              output,
+            ),
+          );
+        };
+
         const pushEntry = (line) => {
           // Cap individual entries to keep the final transcript manageable
           if (line.length > 500) line = line.slice(0, 500) + "…";
@@ -764,6 +778,13 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
                     if (!text) continue;
                     console.log(`💬 ${text.substring(0, 200)}…`);
                     pushEntry(`💬 ${text}`);
+                    if (detectCreditsExhausted(text)) {
+                      console.log(
+                        "⏸️  Usage limit detected — stopping Claude CLI",
+                      );
+                      usageLimitHit = true;
+                      claude.kill("SIGTERM");
+                    }
                   } else if (block.type === "tool_use") {
                     const summary = summarizeToolUse(block);
                     console.log(`🔧 ${summary}`);
@@ -774,6 +795,11 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
                 const result = event.result || "done";
                 console.log(`✅ Result: ${result.substring(0, 100)}`);
                 pushEntry(`✅ Result: ${result}`);
+                if (detectCreditsExhausted(result)) {
+                  console.log("⏸️  Usage limit detected — stopping Claude CLI");
+                  usageLimitHit = true;
+                  claude.kill("SIGTERM");
+                }
               }
             } catch {
               // Not JSON, print raw
@@ -782,26 +808,22 @@ async function runClaudeCodeCLI(issueNumber, prompt, workDir) {
           }
         });
 
-        const cliOutput = [];
-
         claude.stderr.on("data", (data) => {
           const chunk = data.toString();
           cliOutput.push(chunk);
           console.error(chunk);
+          if (detectCreditsExhausted(chunk)) rejectUsageLimit(cliOutput.join(""));
         });
 
         claude.on("close", (code, signal) => {
           killStrayMatterbridge();
-          const output = cliOutput.join("");
+          if (usageLimitHit) return;
+
+          const output = `${cliOutput.join("")}\n${transcript.join("\n")}`;
           if (code === 0) {
             resolve({ success: true, transcript });
           } else if (detectCreditsExhausted(output)) {
-            reject(
-              new CreditsExhaustedError(
-                "Claude credits or usage limit reached",
-                output,
-              ),
-            );
+            rejectUsageLimit(output);
           } else if (code === null) {
             reject(
               new Error(
