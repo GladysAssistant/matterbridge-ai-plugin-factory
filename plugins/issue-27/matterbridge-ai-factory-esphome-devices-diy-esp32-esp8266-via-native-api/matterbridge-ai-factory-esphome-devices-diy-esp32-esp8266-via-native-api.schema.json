@@ -1,0 +1,70 @@
+{
+  "title": "Matterbridge ESPHome Native API plugin",
+  "description": "Expose ESPHome DIY ESP32/ESP8266 devices to Matter via the ESPHome Native API (port 6053).",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "devices": {
+      "title": "ESPHome devices",
+      "description": "List of ESPHome devices to connect to via the Native API.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "title": "Name", "description": "Friendly name prefix for this device.", "type": "string" },
+          "host": { "title": "Host", "description": "Hostname or IP (e.g. capteur-salon.local or 192.168.1.60).", "type": "string" },
+          "port": { "title": "Port", "description": "Native API TCP port (default 6053).", "type": "number", "default": 6053 },
+          "password": { "title": "Password", "description": "Legacy plaintext API password (optional).", "type": "string" },
+          "encryption_key": { "title": "Encryption Key", "description": "Base64 Noise encryption key from the ESPHome YAML api: encryption: key (optional).", "type": "string" }
+        },
+        "required": ["host"]
+      }
+    },
+    "csvPath": {
+      "title": "CSV file path",
+      "description": "Optional path to a CSV file with columns: name,host,port,encryption_key. Devices are merged with the list above.",
+      "type": "string"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug logging.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Debug only.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-esphome-devices-diy-esp32-esp8266-via-native-api",
+  "type": "DynamicPlatform",
+  "devices": [],
+  "csvPath": "",
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
