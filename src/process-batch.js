@@ -337,7 +337,9 @@ async function processBatch({ dryRun = false } = {}) {
     `✅ ${completed} succeeded · ❌ ${failed} failed · ⏭️ ${skipped} skipped`;
 
   console.log(`\n📊 Batch complete: ${completed} ok, ${failed} failed, ${skipped} skipped (${elapsedMin} min)`);
-  await notifyInfo("batch complete", summary);
+  if (completed + failed + skipped > 0) {
+    await notifyInfo("batch complete", summary);
+  }
 
   return { completed, failed, skipped, elapsedMin };
 }
