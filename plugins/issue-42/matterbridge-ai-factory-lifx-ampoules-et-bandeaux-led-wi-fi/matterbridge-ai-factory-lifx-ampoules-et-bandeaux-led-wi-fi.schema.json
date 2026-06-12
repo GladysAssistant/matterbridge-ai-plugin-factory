@@ -1,0 +1,74 @@
+{
+  "title": "Matterbridge LIFX (ampoules et bandeaux LED Wi-Fi)",
+  "description": "matterbridge-ai-factory-lifx-ampoules-et-bandeaux-led-wi-fi v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "lights": {
+      "title": "LIFX IP Addresses",
+      "description": "Optional list of LIFX light IP addresses to target directly. Leave empty to use broadcast discovery.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "broadcast": {
+      "title": "Broadcast Address",
+      "description": "UDP broadcast address used for discovery (default 255.255.255.255).",
+      "type": "string",
+      "default": "255.255.255.255"
+    },
+    "pollInterval": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to refresh device state from the lights.",
+      "type": "number",
+      "default": 30
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes, not recommended for production use.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

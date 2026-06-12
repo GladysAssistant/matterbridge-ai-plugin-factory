@@ -1,0 +1,11 @@
+{
+  "name": "matterbridge-ai-factory-lifx-ampoules-et-bandeaux-led-wi-fi",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "lights": [],
+  "broadcast": "255.255.255.255",
+  "pollInterval": 30,
+  "debug": false,
+  "unregisterOnShutdown": false
+}
