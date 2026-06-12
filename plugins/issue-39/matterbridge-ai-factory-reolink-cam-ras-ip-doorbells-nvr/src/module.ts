@@ -137,24 +137,39 @@ export class ReolinkPlatform extends MatterbridgeDynamicPlatform {
     this.setSelectDevice(serial, name);
     if (!this.validateDevice([name, serial])) return;
 
+    // Each endpoint maps to a feature from the README feature table. The
+    // descriptive `${name} <Feature>` label is applied to every endpoint so the
+    // controller shows the exact function instead of a bare endpoint number
+    // (e.g. "Reolink (Channel 0) 3").
+
     // Main endpoint: motion occupancy + online contact + battery power source.
     const device = new MatterbridgeEndpoint([occupancySensor, contactSensor, powerSource], { id: `reolink_ch${channel}` })
       .createDefaultIdentifyClusterServer()
-      .createDefaultBridgedDeviceBasicInformationClusterServer(name, serial, this.matterbridge.aggregatorVendorId, 'Reolink', 'Reolink Camera', 1, '1.0.0')
+      .createDefaultBridgedDeviceBasicInformationClusterServer(`${name} Motion`, serial, this.matterbridge.aggregatorVendorId, 'Reolink', 'Reolink Camera', 1, '1.0.0')
       .createDefaultOccupancySensingClusterServer(false)
       .createDefaultBooleanStateClusterServer(true)
       .createDefaultPowerSourceReplaceableBatteryClusterServer(100)
       .addRequiredClusterServers();
+    await device.addFixedLabel('Feature', 'Motion / Online / Battery');
 
     // AI detection child occupancy sensors.
-    device.addChildDeviceType('Person', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 0, label: 'Person' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
-    device.addChildDeviceType('Vehicle', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 1, label: 'Vehicle' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
-    device.addChildDeviceType('Animal', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 2, label: 'Animal' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
+    const person = device.addChildDeviceType('PersonDetection', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 0, label: 'Person' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
+    const vehicle = device.addChildDeviceType('VehicleDetection', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 1, label: 'Vehicle' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
+    const animal = device.addChildDeviceType('AnimalDetection', occupancySensor, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 2, label: 'Animal' }] }).createDefaultOccupancySensingClusterServer(false).addRequiredClusterServers();
 
     // Actuators: spotlight (light), siren and IR LED (switches).
     const spotlight = device.addChildDeviceType('Spotlight', onOffLight, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 3, label: 'Spotlight' }] }).createDefaultOnOffClusterServer(false).addRequiredClusterServers();
     const siren = device.addChildDeviceType('Siren', onOffSwitch, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 4, label: 'Siren' }] }).createDefaultOnOffClusterServer(false).addRequiredClusterServers();
-    const irLed = device.addChildDeviceType('IRLed', onOffSwitch, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 5, label: 'IRLed' }] }).createDefaultOnOffClusterServer(false).addRequiredClusterServers();
+    const irLed = device.addChildDeviceType('IRLed', onOffSwitch, { tagList: [{ mfgCode: null, namespaceId: 0x07, tag: 5, label: 'IR LED' }] }).createDefaultOnOffClusterServer(false).addRequiredClusterServers();
+
+    // Give every child a descriptive, function-specific name so the controller
+    // never shows ambiguous duplicate "motion"/"switch" entries.
+    await person.addFixedLabel('Feature', `${name} Person Detection`);
+    await vehicle.addFixedLabel('Feature', `${name} Vehicle Detection`);
+    await animal.addFixedLabel('Feature', `${name} Animal Detection`);
+    await spotlight.addFixedLabel('Feature', `${name} Spotlight`);
+    await siren.addFixedLabel('Feature', `${name} Siren`);
+    await irLed.addFixedLabel('Feature', `${name} IR LED`);
 
     spotlight.addCommandHandler('on', () => this.safe(() => this.host?.setSpotlight(channel, true)));
     spotlight.addCommandHandler('off', () => this.safe(() => this.host?.setSpotlight(channel, false)));
@@ -222,9 +237,9 @@ export class ReolinkPlatform extends MatterbridgeDynamicPlatform {
       if (child) await child.updateAttribute('OnOff', 'onOff', on, this.log);
     };
 
-    await setOcc('Person', state.person);
-    await setOcc('Vehicle', state.vehicle);
-    await setOcc('Animal', state.animal);
+    await setOcc('PersonDetection', state.person);
+    await setOcc('VehicleDetection', state.vehicle);
+    await setOcc('AnimalDetection', state.animal);
     await setOnOff('Spotlight', state.spotlight);
     await setOnOff('IRLed', state.irLed);
   }
