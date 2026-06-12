@@ -1,0 +1,10 @@
+{
+  "name": "matterbridge-ai-factory-ring-doorbells-cam-ras-alarm-smart-lighting",
+  "type": "DynamicPlatform",
+  "refreshToken": "",
+  "locationModePollingSeconds": 20,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
