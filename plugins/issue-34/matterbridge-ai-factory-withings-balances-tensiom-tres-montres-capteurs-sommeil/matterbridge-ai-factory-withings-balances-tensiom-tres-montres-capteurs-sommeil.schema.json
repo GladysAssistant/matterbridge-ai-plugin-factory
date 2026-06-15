@@ -43,6 +43,16 @@
       "description": "OAuth2 client secret from your Withings app.",
       "type": "string"
     },
+    "authorizationCode": {
+      "title": "Authorization Code",
+      "description": "One-time OAuth2 authorization code returned on your redirect URI after authorizing the app (scopes: user.metrics, user.activity, user.sleepevents). Used once to obtain the refresh token, then cleared automatically. Leave empty if you already have a refresh token.",
+      "type": "string"
+    },
+    "redirectUri": {
+      "title": "Redirect URI",
+      "description": "The redirect URI registered with your Withings app. Must match exactly the one used to obtain the authorization code.",
+      "type": "string"
+    },
     "accessToken": {
       "title": "Access Token",
       "description": "OAuth2 access token (auto-refreshed). Leave empty initially.",
@@ -50,7 +60,7 @@
     },
     "refreshToken": {
       "title": "Refresh Token",
-      "description": "OAuth2 refresh token obtained from the Authorization Code flow (scopes: user.metrics, user.activity, user.sleepevents).",
+      "description": "OAuth2 refresh token. Obtained automatically from the authorization code, or paste one manually. Leave empty initially if using the authorization code flow.",
       "type": "string"
     },
     "pollInterval": {

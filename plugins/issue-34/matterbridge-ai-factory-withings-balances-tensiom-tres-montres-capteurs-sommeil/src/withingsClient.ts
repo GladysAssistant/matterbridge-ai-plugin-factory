@@ -87,6 +87,45 @@ export class WithingsClient {
   }
 
   /**
+   * Exchanges an OAuth2 authorization code for an access token and refresh token.
+   *
+   * This performs the initial step of the Authorization Code flow so the user
+   * does not have to obtain the refresh token manually.
+   *
+   * @param {string} clientId - Withings application client id.
+   * @param {string} clientSecret - Withings application client secret.
+   * @param {string} code - Authorization code returned on the redirect URI.
+   * @param {string} redirectUri - The redirect URI registered with the Withings app.
+   * @param {AnsiLogger} log - Logger instance.
+   * @returns {Promise<WithingsTokens>} The obtained tokens.
+   */
+  static async exchangeCode(clientId: string, clientSecret: string, code: string, redirectUri: string, log: AnsiLogger): Promise<WithingsTokens> {
+    log.debug('Exchanging Withings authorization code for tokens');
+    const params = new URLSearchParams({
+      action: 'requesttoken',
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+    });
+    const res = await fetch(OAUTH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+    const json = (await res.json()) as { status: number; body?: { access_token: string; refresh_token: string; expires_in: number }; error?: string };
+    if (json.status !== 0 || !json.body) {
+      throw new Error(`Withings authorization code exchange failed: status=${json.status} ${json.error ?? ''}`);
+    }
+    return {
+      accessToken: json.body.access_token,
+      refreshToken: json.body.refresh_token,
+      expiresAt: Math.floor(Date.now() / 1000) + json.body.expires_in,
+    };
+  }
+
+  /**
    * Exchanges the refresh token for a new access token.
    *
    * @returns {Promise<string>} The new access token.

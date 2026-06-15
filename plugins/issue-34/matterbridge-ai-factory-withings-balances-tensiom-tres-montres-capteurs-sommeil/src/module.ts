@@ -32,6 +32,8 @@ export type WithingsPlatformConfig = BasePlatformConfig & {
   blackList: string[];
   clientId?: string;
   clientSecret?: string;
+  authorizationCode?: string;
+  redirectUri?: string;
   accessToken?: string;
   refreshToken?: string;
   pollInterval?: number;
@@ -89,14 +91,35 @@ export class WithingsPlatform extends MatterbridgeDynamicPlatform {
     await this.clearSelect();
 
     const config = this.config as WithingsPlatformConfig;
-    if (!isValidString(config.clientId, 1) || !isValidString(config.clientSecret, 1) || !isValidString(config.refreshToken, 1)) {
-      this.log.warn('Withings credentials are not configured (clientId, clientSecret, refreshToken). No devices will be created. Complete the OAuth2 flow on https://developer.withings.com/ and fill the plugin config.');
+    if (!isValidString(config.clientId, 1) || !isValidString(config.clientSecret, 1)) {
+      this.log.warn('Withings credentials are not configured (clientId, clientSecret). No devices will be created. Create an app on https://developer.withings.com/ and fill the plugin config.');
       return;
+    }
+
+    // The initial Authorization Code flow: if no refresh token is stored yet but an
+    // authorization code was provided, exchange it for an access + refresh token.
+    if (!isValidString(config.refreshToken, 1)) {
+      if (!isValidString(config.authorizationCode, 1) || !isValidString(config.redirectUri, 1)) {
+        this.log.warn(
+          'Withings refresh token is missing. Complete the OAuth2 flow: open the authorize URL on https://developer.withings.com/, then paste the returned authorization code and the matching redirect URI into the plugin config (authorizationCode, redirectUri). The refresh token will be obtained automatically.',
+        );
+        return;
+      }
+      try {
+        const obtained = await WithingsClient.exchangeCode(config.clientId, config.clientSecret, config.authorizationCode, config.redirectUri, this.log);
+        this.persistTokens(obtained);
+        // The authorization code is single-use; clear it so it is not reused on the next start.
+        config.authorizationCode = '';
+        this.log.info('Withings authorization code exchanged successfully; refresh token stored.');
+      } catch (error) {
+        this.log.error(`Failed to exchange Withings authorization code: ${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
     }
 
     const tokens: WithingsTokens = {
       accessToken: config.accessToken ?? '',
-      refreshToken: config.refreshToken,
+      refreshToken: config.refreshToken as string,
       expiresAt: 0,
     };
     this.client = new WithingsClient(config.clientId, config.clientSecret, tokens, this.log, (t) => this.persistTokens(t));
