@@ -9,6 +9,9 @@ import { AnsiLogger } from 'matterbridge/logger';
 
 /** OAuth2 + API base endpoints. */
 const OAUTH_URL = 'https://wbsapi.withings.net/v2/oauth2';
+const AUTHORIZE_URL = 'https://account.withings.com/oauth2_user/authorize2';
+/** Scopes requested for the Withings integration. */
+const SCOPE = 'user.info,user.metrics,user.activity';
 const MEASURE_URL = 'https://wbsapi.withings.net/measure';
 const USER_URL = 'https://wbsapi.withings.net/v2/user';
 const SLEEP_URL = 'https://wbsapi.withings.net/v2/sleep';
@@ -84,6 +87,25 @@ export class WithingsClient {
       return this.tokens.accessToken;
     }
     return this.refreshToken();
+  }
+
+  /**
+   * Builds the Withings OAuth2 authorization URL the user must open to obtain an authorization code.
+   *
+   * @param {string} clientId - Withings application client id.
+   * @param {string} redirectUri - The redirect URI registered with the Withings app.
+   * @param {string} [state] - Opaque state value echoed back on the redirect.
+   * @returns {string} The fully built authorize URL.
+   */
+  static buildAuthorizeUrl(clientId: string, redirectUri: string, state = 'matterbridge'): string {
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      scope: SCOPE,
+      redirect_uri: redirectUri,
+      state,
+    });
+    return `${AUTHORIZE_URL}?${params.toString()}`;
   }
 
   /**

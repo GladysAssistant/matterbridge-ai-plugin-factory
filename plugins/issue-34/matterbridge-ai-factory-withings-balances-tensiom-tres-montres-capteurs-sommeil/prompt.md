@@ -1,15 +1,11 @@
 Fix bug in matterbridge-ai-factory-withings-balances-tensiom-tres-montres-capteurs-sommeil. Be concise, write code not explanations.
 
 Bug report:
-J'ai configuré Withings Client ID et Withings Client Secret mais j'ai quand même ce message dans les logs : 
+Il faut que tu puisses fournir dans les logs l'url d'authorisation de ce type afin de récuperer l'Authorization Code et passer à l'étape suivante qui est "Request Access and Refresh Tokens"
 
-[13:04:43.151] [Matterbridge plugin exposing Withings devices (scales, blood pressure monitors, watches, sleep/Aura, thermo) as read-only Matter sensors] Withings credentials are not configured (clientId, clientSecret, refreshToken). No devices will be created. Complete the OAuth2 flow on https://developer.withings.com/ and fill the plugin config.
+https://account.withings.com/oauth2_user/authorize2?response_type=code&client_id=YOUR_CLIENT_ID&scope=user.info,user.metrics,user.activity&redirect_uri=YOUR_REDIRECT_URI&state=YOUR_STATE
 
-Le refreshToken est censé être recuperé en même temps que l'access token comme indiqué dans la documentation : 
-
-`2. Obtain an access token: Exchange the authorization code for an access token and refresh token.`
-
-Je ne peux donc pas finaliser la phase d'authentification initial
+Tout est indiqué ici : https://developer.withings.com/api-reference/
 
 Fix the code, then test:
 ```bash

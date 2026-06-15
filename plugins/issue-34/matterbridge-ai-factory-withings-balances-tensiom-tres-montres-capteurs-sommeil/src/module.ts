@@ -100,9 +100,15 @@ export class WithingsPlatform extends MatterbridgeDynamicPlatform {
     // authorization code was provided, exchange it for an access + refresh token.
     if (!isValidString(config.refreshToken, 1)) {
       if (!isValidString(config.authorizationCode, 1) || !isValidString(config.redirectUri, 1)) {
+        const redirectUri = isValidString(config.redirectUri, 1) ? (config.redirectUri as string) : 'YOUR_REDIRECT_URI';
+        const authorizeUrl = WithingsClient.buildAuthorizeUrl(config.clientId, redirectUri);
         this.log.warn(
-          'Withings refresh token is missing. Complete the OAuth2 flow: open the authorize URL on https://developer.withings.com/, then paste the returned authorization code and the matching redirect URI into the plugin config (authorizationCode, redirectUri). The refresh token will be obtained automatically.',
+          'Withings refresh token is missing. Complete the OAuth2 flow: open the authorize URL below in your browser, authorize the app, then paste the returned authorization code and the matching redirect URI into the plugin config (authorizationCode, redirectUri). The refresh token will be obtained automatically.',
         );
+        this.log.notice(`Withings authorization URL: ${authorizeUrl}`);
+        if (redirectUri === 'YOUR_REDIRECT_URI') {
+          this.log.warn('Set "redirectUri" in the plugin config (it must match the redirect URI registered in your Withings app) and replace YOUR_REDIRECT_URI in the URL above.');
+        }
         return;
       }
       try {
