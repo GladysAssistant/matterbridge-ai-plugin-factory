@@ -14,6 +14,7 @@
  */
 
 import { createServer, type Server, type Socket } from 'node:net';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import type { AnsiLogger } from 'matterbridge/logger';
@@ -58,6 +59,7 @@ export class AjaxClient extends EventEmitter {
   private pollTimer?: NodeJS.Timeout;
   private siaServer?: Server;
   private sessionToken?: string;
+  private userId?: string;
   private stopped = false;
 
   constructor(config: AjaxPlatformConfig, log: AnsiLogger) {
@@ -179,6 +181,7 @@ export class AjaxClient extends EventEmitter {
   private async apiLogin(): Promise<void> {
     if (this.config.apiToken) {
       this.sessionToken = this.config.apiToken;
+      this.userId = this.config.apiUserId;
       return;
     }
     if (!this.config.email || !this.config.password) {
@@ -186,15 +189,24 @@ export class AjaxClient extends EventEmitter {
     }
     const res = await this.fetchJson(`${this.apiBase}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.authHeaders(),
       body: JSON.stringify({
         login: this.config.email,
-        passwordHash: this.config.password,
+        passwordHash: this.hashPassword(this.config.password),
+        userRole: 'USER',
         ...(this.config.totp ? { otp: this.config.totp } : {}),
       }),
     });
     this.sessionToken = (res?.sessionToken as string) ?? (res?.token as string);
+    this.userId = (res?.userId as string) ?? (res?.id as string) ?? this.config.email;
     if (!this.sessionToken) throw new Error('Ajax API login did not return a session token.');
+    this.log.debug(`Ajax API login ok (userId=${this.userId}).`);
+  }
+
+  /** Ajax API expects the SHA-256 hex of the password. Leave an already-hashed value untouched. */
+  private hashPassword(password: string): string {
+    if (/^[0-9a-f]{64}$/i.test(password)) return password.toLowerCase();
+    return createHash('sha256').update(password, 'utf8').digest('hex');
   }
 
   private async connectApi(): Promise<void> {
@@ -208,9 +220,14 @@ export class AjaxClient extends EventEmitter {
   }
 
   private async apiRefreshDevices(): Promise<void> {
-    const userId = this.config.email ?? 'me';
-    const hubs = (await this.apiGet(`/user/${encodeURIComponent(userId)}/hubs`)) as Array<Record<string, unknown>> | undefined;
-    if (!Array.isArray(hubs)) return;
+    const userId = this.userId ?? this.config.email ?? 'me';
+    const raw = await this.apiGet(`/user/${encodeURIComponent(userId)}/hubs`);
+    const hubs = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : undefined;
+    if (!hubs) {
+      this.log.debug('Ajax API returned no hubs.');
+      return;
+    }
+    this.log.info(`Ajax API: discovered ${hubs.length} hub(s).`);
     for (const hub of hubs) {
       const hubId = String(hub.hubId ?? hub.id ?? '');
       if (!hubId) continue;
@@ -292,7 +309,7 @@ export class AjaxClient extends EventEmitter {
   }
 
   private async apiCommand(hubId: string, path: string, body: Record<string, unknown>): Promise<boolean> {
-    const userId = this.config.email ?? 'me';
+    const userId = this.userId ?? this.config.email ?? 'me';
     const res = await this.fetchJson(`${this.apiBase}/user/${encodeURIComponent(userId)}/${path}`, {
       method: 'POST',
       headers: this.authHeaders(),
@@ -308,6 +325,7 @@ export class AjaxClient extends EventEmitter {
   private authHeaders(): Record<string, string> {
     return {
       'Content-Type': 'application/json',
+      ...(this.config.apiKey ? { 'X-Api-Key': this.config.apiKey } : {}),
       ...(this.sessionToken ? { 'X-Session-Token': this.sessionToken, Authorization: `Bearer ${this.sessionToken}` } : {}),
     };
   }

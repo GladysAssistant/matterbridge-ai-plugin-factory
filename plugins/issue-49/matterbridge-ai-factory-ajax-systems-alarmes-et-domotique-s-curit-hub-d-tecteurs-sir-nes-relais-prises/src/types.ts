@@ -67,7 +67,9 @@ export type AjaxPlatformConfig = BasePlatformConfig & {
   password?: string;
   appLabel?: string;
   totp?: string;
+  apiKey?: string;
   apiToken?: string;
+  apiUserId?: string;
   apiBaseUrl?: string;
   grpcHost?: string;
   siaPort?: number;

@@ -53,6 +53,7 @@ export class AjaxPlatform extends MatterbridgeDynamicPlatform {
     this.client = new AjaxClient(config, this.log);
     this.client.on('error', (err: Error) => this.log.error(`Ajax client error: ${err.message}`));
     this.client.on('arm', (hubId: string, state: AjaxArmState) => void this.updatePanel(hubId, state));
+    this.client.on('device', (dev: AjaxDevice) => void this.addDevice(dev));
     this.client.on('update', (dev: AjaxDevice) => void this.applyState(dev));
   }
 
@@ -62,7 +63,17 @@ export class AjaxPlatform extends MatterbridgeDynamicPlatform {
     await this.clearSelect();
 
     await this.client.connect();
-    for (const dev of this.client.getDevices()) await this.addDevice(dev);
+    const devices = this.client.getDevices();
+    for (const dev of devices) await this.addDevice(dev);
+    this.log.info(`onStart: registered ${this.endpoints.size} Ajax device(s).`);
+    if (this.endpoints.size === 0) {
+      this.log.notice(
+        'No Ajax devices were exposed. Check the connection mode and credentials: ' +
+          'api mode needs a valid email/password (or apiToken) and an Ajax API key (X-Api-Key); ' +
+          'grpc mode needs vendor proto descriptors; sia mode only reacts to incoming hub events. ' +
+          'Enable "exposeDemoDevices" to verify the integration without an account.',
+      );
+    }
   }
 
   override async onConfigure(): Promise<void> {
@@ -263,7 +274,8 @@ export class AjaxPlatform extends MatterbridgeDynamicPlatform {
   }
 
   private pctToLevel(pct: number): number {
-    return Math.max(0, Math.min(254, Math.round((pct / 100) * 254)));
+    // Matter LevelControl currentLevel must be within [1, 254]; 0 is invalid (off is handled by OnOff).
+    return Math.max(1, Math.min(254, Math.round((pct / 100) * 254)));
   }
 
   private levelToPct(level: number): number {
