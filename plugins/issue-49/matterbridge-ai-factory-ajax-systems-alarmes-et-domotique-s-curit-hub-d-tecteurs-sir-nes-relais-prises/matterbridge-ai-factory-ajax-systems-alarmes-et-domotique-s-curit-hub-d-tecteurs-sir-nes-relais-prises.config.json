@@ -1,0 +1,16 @@
+{
+  "name": "matterbridge-ai-factory-ajax-systems-alarmes-et-domotique-s-curit-hub-d-tecteurs-sir-nes-relais-prises",
+  "type": "DynamicPlatform",
+  "whiteList": [],
+  "blackList": [],
+  "mode": "api",
+  "appLabel": "Ajax",
+  "apiBaseUrl": "https://api.ajax.systems/api",
+  "grpcHost": "mobile-gw.prod.ajax.systems:443",
+  "siaPort": 8088,
+  "allowForceArm": false,
+  "pollInterval": 30,
+  "exposeDemoDevices": false,
+  "debug": false,
+  "unregisterOnShutdown": false
+}

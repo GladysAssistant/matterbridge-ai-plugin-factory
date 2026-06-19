@@ -1,0 +1,47 @@
+{
+  "title": "Ajax Systems",
+  "description": "Ajax Systems alarm & automation — Hub, detectors, sirens, relays, sockets. Connect via Ajax REST API, gRPC cloud, or local SIA listener.",
+  "type": "object",
+  "properties": {
+    "name": { "title": "Plugin Name", "description": "Plugin name", "type": "string", "readOnly": true, "ui:widget": "hidden" },
+    "type": { "title": "Plugin Type", "description": "Plugin type", "type": "string", "readOnly": true, "ui:widget": "hidden" },
+    "mode": {
+      "title": "Connection mode",
+      "description": "api = official Ajax REST API (arm/disarm + polling); grpc = mobile cloud gateway (app protocol); sia = local SIA DC-09 listener (events only).",
+      "type": "string",
+      "enum": ["api", "grpc", "sia"],
+      "default": "api"
+    },
+    "email": { "title": "Ajax account email", "description": "Email of the Ajax account (api/grpc modes).", "type": "string" },
+    "password": { "title": "Ajax password", "description": "Account password (api/grpc modes).", "type": "string", "ui:widget": "password" },
+    "appLabel": { "title": "Application label", "description": "App label for gRPC (e.g. 'Ajax', or a co-branded app like 'ADT').", "type": "string", "default": "Ajax" },
+    "totp": { "title": "2FA TOTP code", "description": "One-time TOTP code if two-factor authentication is enabled.", "type": "string" },
+    "apiToken": { "title": "API token", "description": "User API or PRO API token (alternative to email/password in api mode).", "type": "string", "ui:widget": "password" },
+    "apiBaseUrl": { "title": "API base URL", "description": "Ajax REST API base URL.", "type": "string", "default": "https://api.ajax.systems/api" },
+    "grpcHost": { "title": "gRPC host", "description": "Ajax mobile gateway host:port.", "type": "string", "default": "mobile-gw.prod.ajax.systems:443" },
+    "siaPort": { "title": "SIA listener port", "description": "TCP port the hub sends SIA DC-09 events to.", "type": "number", "default": 8088 },
+    "siaAccountId": { "title": "SIA account id", "description": "Optional SIA account id filter.", "type": "string" },
+    "armPin": { "title": "Arm/disarm PIN", "description": "User code/PIN required for arming if configured on the hub.", "type": "string", "ui:widget": "password" },
+    "allowForceArm": { "title": "Allow force arm", "description": "Allow arming while detectors are open (ignore problems). Advanced.", "type": "boolean", "default": false },
+    "pollInterval": { "title": "Poll interval (s)", "description": "API polling interval in seconds.", "type": "number", "default": 30 },
+    "exposeDemoDevices": { "title": "Expose demo devices", "description": "Expose a representative set of demo devices (no account needed). For testing only.", "type": "boolean", "default": false },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If empty, all devices are exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "Devices in the list will not be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": { "title": "Enable Debug", "description": "Enable debug logging for the plugin.", "type": "boolean", "default": false },
+    "unregisterOnShutdown": { "title": "Unregister On Shutdown", "description": "Unregister all devices on shutdown (debugging).", "type": "boolean", "default": false }
+  }
+}
