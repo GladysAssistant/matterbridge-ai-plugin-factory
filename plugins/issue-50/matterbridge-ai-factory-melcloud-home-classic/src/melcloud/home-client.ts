@@ -68,6 +68,24 @@ function capNum(caps: Record<string, unknown> | undefined, key: string, fallback
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * Build a stable serial number for a Home unit.
+ *
+ * Matter's BridgedDeviceBasicInformation `serialNumber` is capped at 32
+ * characters. A Home unit id is a 36-character UUID, so using it directly makes
+ * Matterbridge silently truncate the last 4 hex digits (e.g.
+ * `...bd30c3597910` -> `...bd30c359`). The truncated suffix differs from the
+ * value the controller stored, so the device is re-added instead of updated.
+ * Stripping the hyphens yields exactly 32 characters and keeps every digit.
+ *
+ * @param {string | undefined} serialNumber - Vendor serial number, when present.
+ * @param {string} id - Home unit id (UUID) used as the fallback serial.
+ * @returns {string} A serial number that fits Matter's 32-character limit.
+ */
+function homeSerial(serialNumber: string | undefined, id: string): string {
+  return serialNumber ?? id.replace(/-/g, '');
+}
+
 /** Client for the modern MELCloud Home cloud API. */
 export class HomeClient implements MelcloudClient {
   readonly app = 'home' as const;
@@ -100,7 +118,7 @@ export class HomeClient implements MelcloudClient {
         devices.push({
           id: `home-${unit.id}`,
           name: unit.givenDisplayName || `ATW ${unit.id}`,
-          serial: unit.id,
+          serial: homeSerial(undefined, unit.id),
           type: 'atw',
           supported: false,
         });
@@ -163,14 +181,14 @@ function normalizeAta(unit: HomeAtaUnit, building: HomeBuilding): MelcloudDevice
   const info: DeviceInfo = {
     buildingName: building.name,
     acModel: unit.model ?? (settingValue(unit, 'ModelName') || undefined),
-    acSerial: unit.serialNumber ?? unit.id,
+    acSerial: homeSerial(unit.serialNumber, unit.id),
     macAddress: unit.macAddress ?? (settingValue(unit, 'MacAddress') || undefined),
     wifiSerial: unit.macAddress ?? undefined,
   };
   return {
     id: `home-${unit.id}`,
     name: unit.givenDisplayName || `ATA ${unit.id}`,
-    serial: unit.serialNumber ?? unit.id,
+    serial: homeSerial(unit.serialNumber, unit.id),
     type: 'ata',
     supported: true,
     info,
