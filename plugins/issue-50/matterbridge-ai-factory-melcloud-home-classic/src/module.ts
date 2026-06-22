@@ -184,15 +184,16 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       )
       .createDefaultIdentifyClusterServer()
       .createDefaultOnOffClusterServer(ata.power)
+      // createDefaultThermostatClusterServer expects raw °C and scales by 100 internally.
       .createDefaultThermostatClusterServer(
-        ata.roomTemperature * C,
-        ata.setTemperature * C,
-        ata.setTemperature * C,
+        ata.roomTemperature,
+        ata.setTemperature,
+        ata.setTemperature,
         undefined,
-        ata.minSetpoint * C,
-        ata.maxSetpoint * C,
-        ata.minSetpoint * C,
-        ata.maxSetpoint * C,
+        ata.minSetpoint,
+        ata.maxSetpoint,
+        ata.minSetpoint,
+        ata.maxSetpoint,
       )
       .createCompleteFanControlClusterServer(
         fanSpeedToMode(ata.fanSpeed, ata.numberOfFanSpeeds),
