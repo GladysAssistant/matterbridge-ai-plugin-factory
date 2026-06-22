@@ -30,8 +30,34 @@ export interface MelcloudDevice {
   readonly type: 'ata' | 'atw' | 'unknown';
   /** Whether a Matter endpoint should be created for this device. */
   readonly supported: boolean;
+  /** Hardware / building metadata mirrored from the MELCloud web app. */
+  readonly info?: DeviceInfo;
   /** Current ATA state (present only for `type === 'ata'`). */
   readonly ata?: AtaState;
+}
+
+/**
+ * Inventory metadata mirrored from the MELCloud web app (model, serial numbers,
+ * Wi-Fi adapter and house name). All fields are best effort: a backend may not
+ * expose every value.
+ */
+export interface DeviceInfo {
+  /** Name of the building / house the device belongs to. */
+  buildingName?: string;
+  /** Indoor air-conditioning unit model. */
+  acModel?: string;
+  /** Indoor air-conditioning unit serial number. */
+  acSerial?: string;
+  /** Outdoor (external) unit model. */
+  outdoorModel?: string;
+  /** Outdoor (external) unit serial number. */
+  outdoorSerial?: string;
+  /** Wi-Fi interface / adapter model. */
+  wifiModel?: string;
+  /** Wi-Fi interface serial number. */
+  wifiSerial?: string;
+  /** Wi-Fi interface MAC address. */
+  macAddress?: string;
 }
 
 /** Live, normalized state of an ATA device. */

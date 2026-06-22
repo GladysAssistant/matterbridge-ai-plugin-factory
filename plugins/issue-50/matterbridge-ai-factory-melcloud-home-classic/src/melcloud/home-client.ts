@@ -11,7 +11,7 @@
 import type { AnsiLogger } from 'matterbridge/logger';
 
 import { performHomeLogin, refreshHomeTokens } from './home-oidc.js';
-import type { AtaMode, AtaPatch, MelcloudClient, MelcloudDevice } from './types.js';
+import type { AtaMode, AtaPatch, DeviceInfo, MelcloudClient, MelcloudDevice } from './types.js';
 
 const BASE_URL = 'https://mobile.bff.melcloudhome.com';
 
@@ -31,6 +31,9 @@ interface HomeSetting {
 interface HomeAtaUnit {
   id: string;
   givenDisplayName?: string;
+  serialNumber?: string;
+  model?: string;
+  macAddress?: string;
   settings: HomeSetting[];
   capabilities?: Record<string, unknown>;
 }
@@ -41,6 +44,7 @@ interface HomeAtwUnit {
 }
 
 interface HomeBuilding {
+  name?: string;
   airToAirUnits?: HomeAtaUnit[];
   airToWaterUnits?: HomeAtwUnit[];
 }
@@ -91,7 +95,7 @@ export class HomeClient implements MelcloudClient {
     const buildings = [...(context.buildings ?? []), ...(context.guestBuildings ?? [])];
     const devices: MelcloudDevice[] = [];
     for (const building of buildings) {
-      for (const unit of building.airToAirUnits ?? []) devices.push(normalizeAta(unit));
+      for (const unit of building.airToAirUnits ?? []) devices.push(normalizeAta(unit, building));
       for (const unit of building.airToWaterUnits ?? []) {
         devices.push({
           id: `home-${unit.id}`,
@@ -152,16 +156,24 @@ export class HomeClient implements MelcloudClient {
   }
 }
 
-function normalizeAta(unit: HomeAtaUnit): MelcloudDevice {
+function normalizeAta(unit: HomeAtaUnit, building: HomeBuilding): MelcloudDevice {
   const caps = unit.capabilities;
   const fanRaw = settingValue(unit, 'SetFanSpeed');
   const fanSpeed = FAN_TO_INDEX[fanRaw] ?? num(fanRaw, 0);
+  const info: DeviceInfo = {
+    buildingName: building.name,
+    acModel: unit.model ?? (settingValue(unit, 'ModelName') || undefined),
+    acSerial: unit.serialNumber ?? unit.id,
+    macAddress: unit.macAddress ?? (settingValue(unit, 'MacAddress') || undefined),
+    wifiSerial: unit.macAddress ?? undefined,
+  };
   return {
     id: `home-${unit.id}`,
     name: unit.givenDisplayName || `ATA ${unit.id}`,
-    serial: unit.id,
+    serial: unit.serialNumber ?? unit.id,
     type: 'ata',
     supported: true,
+    info,
     ata: {
       power: settingValue(unit, 'Power') === 'True',
       roomTemperature: num(settingValue(unit, 'RoomTemperature'), 20),

@@ -180,7 +180,7 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
         device.serial,
         this.matterbridge.aggregatorVendorId,
         'Mitsubishi Electric',
-        'MELCloud ATA',
+        device.info?.acModel ?? 'MELCloud ATA',
       )
       .createDefaultIdentifyClusterServer()
       .createDefaultOnOffClusterServer(ata.power)
@@ -195,11 +195,13 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
         ata.minSetpoint,
         ata.maxSetpoint,
       )
+      // MultiSpeed fan: discrete speeds 1..N via speedSetting plus the coarse
+      // Off/Low/Med/High/Auto fanMode. Both are kept in sync in #refreshStates.
       .createCompleteFanControlClusterServer(
-        fanSpeedToMode(ata.fanSpeed, ata.numberOfFanSpeeds),
+        fanSpeedToMode(ata.fanSpeed),
         FanControl.FanModeSequence.OffLowMedHighAuto,
-        undefined,
-        undefined,
+        speedToPercent(ata.fanSpeed, ata.numberOfFanSpeeds),
+        speedToPercent(ata.fanSpeed, ata.numberOfFanSpeeds),
         ata.numberOfFanSpeeds,
         ata.fanSpeed,
         ata.fanSpeed,
@@ -213,6 +215,7 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
 
     await this.registerDevice(endpoint);
     this.#registered.set(device.id, { endpoint, device });
+    this.#logDeviceInfo(device);
     this.log.info(`Registered MELCloud ATA device "${device.name}".`);
   }
 
@@ -224,7 +227,7 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       void this.#apply(device, { power: false });
     });
 
-    endpoint.subscribeAttribute(
+    void endpoint.subscribeAttribute(
       Thermostat,
       'systemMode',
       (value: Thermostat.SystemMode, _old: Thermostat.SystemMode, context: ActionContext) => {
@@ -234,7 +237,7 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       },
       this.log,
     );
-    endpoint.subscribeAttribute(
+    void endpoint.subscribeAttribute(
       Thermostat,
       'occupiedHeatingSetpoint',
       (value: number, _old: number, context: ActionContext) => {
@@ -243,7 +246,7 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       },
       this.log,
     );
-    endpoint.subscribeAttribute(
+    void endpoint.subscribeAttribute(
       Thermostat,
       'occupiedCoolingSetpoint',
       (value: number, _old: number, context: ActionContext) => {
@@ -252,16 +255,45 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       },
       this.log,
     );
-    endpoint.subscribeAttribute(
+    void endpoint.subscribeAttribute(
       FanControl,
       'fanMode',
       (value: FanControl.FanMode, _old: FanControl.FanMode, context: ActionContext) => {
         if (context.fabric === undefined) return;
-        void this.#apply(device, { fanSpeed: fanModeToSpeed(value, device.ata?.numberOfFanSpeeds ?? 5) });
+        // "Off" on the fan turns the whole unit off (there is no fan-off state on a MELCloud unit).
+        if (value === FanControl.FanMode.Off) {
+          void this.#apply(device, { power: false });
+          return;
+        }
+        void this.#apply(device, { power: true, fanSpeed: fanModeToSpeed(value, device.ata?.numberOfFanSpeeds ?? 5) });
       },
       this.log,
     );
-    endpoint.subscribeAttribute(
+    // Discrete speed slider (MultiSpeed feature): 1..numberOfFanSpeeds.
+    void endpoint.subscribeAttribute(
+      FanControl,
+      'speedSetting',
+      (value: number | null, _old: number | null, context: ActionContext) => {
+        if (context.fabric === undefined || value === null) return;
+        const max = device.ata?.numberOfFanSpeeds ?? 5;
+        const speed = Math.max(0, Math.min(max, Math.round(value)));
+        void this.#apply(device, speed === 0 ? { fanSpeed: 0 } : { power: true, fanSpeed: speed });
+      },
+      this.log,
+    );
+    // Percentage slider: mapped onto the discrete MELCloud speeds.
+    void endpoint.subscribeAttribute(
+      FanControl,
+      'percentSetting',
+      (value: number | null, _old: number | null, context: ActionContext) => {
+        if (context.fabric === undefined || value === null) return;
+        const max = device.ata?.numberOfFanSpeeds ?? 5;
+        const speed = percentToSpeed(value, max);
+        void this.#apply(device, speed === 0 ? { fanSpeed: 0 } : { power: true, fanSpeed: speed });
+      },
+      this.log,
+    );
+    void endpoint.subscribeAttribute(
       FanControl,
       'rockSetting',
       (value: { rockLeftRight?: boolean; rockUpDown?: boolean }, _old: unknown, context: ActionContext) => {
@@ -305,7 +337,12 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       await endpoint.setAttribute(Thermostat, 'occupiedHeatingSetpoint', Math.round(ata.setTemperature * C), this.log);
       await endpoint.setAttribute(Thermostat, 'occupiedCoolingSetpoint', Math.round(ata.setTemperature * C), this.log);
       await endpoint.setAttribute(Thermostat, 'systemMode', MODE_TO_SYSTEM[ata.mode], this.log);
-      await endpoint.setAttribute(FanControl, 'fanMode', fanSpeedToMode(ata.fanSpeed, ata.numberOfFanSpeeds), this.log);
+      // Keep fanMode, the discrete speed and the percentage all consistent with the unit.
+      await endpoint.setAttribute(FanControl, 'fanMode', ata.power ? fanSpeedToMode(ata.fanSpeed) : FanControl.FanMode.Off, this.log);
+      await endpoint.setAttribute(FanControl, 'speedSetting', ata.fanSpeed, this.log);
+      await endpoint.setAttribute(FanControl, 'speedCurrent', ata.fanSpeed, this.log);
+      await endpoint.setAttribute(FanControl, 'percentSetting', speedToPercent(ata.fanSpeed, ata.numberOfFanSpeeds), this.log);
+      await endpoint.setAttribute(FanControl, 'percentCurrent', speedToPercent(ata.fanSpeed, ata.numberOfFanSpeeds), this.log);
       await endpoint.setAttribute(
         FanControl,
         'rockSetting',
@@ -315,29 +352,59 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
       await endpoint.setAttribute('TemperatureMeasurement', 'measuredValue', Math.round(ata.roomTemperature * C), this.log);
     }
   }
+
+  /** Log the inventory metadata (models, serials, Wi-Fi adapter, house) mirrored from the web app. */
+  #logDeviceInfo(device: MelcloudDevice): void {
+    const info = device.info;
+    if (!info) return;
+    const parts: string[] = [];
+    if (info.buildingName) parts.push(`house="${info.buildingName}"`);
+    if (info.acModel) parts.push(`acModel="${info.acModel}"`);
+    if (info.acSerial) parts.push(`acSerial="${info.acSerial}"`);
+    if (info.outdoorModel) parts.push(`outdoorModel="${info.outdoorModel}"`);
+    if (info.outdoorSerial) parts.push(`outdoorSerial="${info.outdoorSerial}"`);
+    if (info.wifiModel) parts.push(`wifiModel="${info.wifiModel}"`);
+    if (info.wifiSerial) parts.push(`wifiSerial="${info.wifiSerial}"`);
+    if (info.macAddress) parts.push(`mac="${info.macAddress}"`);
+    if (parts.length > 0) this.log.info(`MELCloud device "${device.name}" info: ${parts.join(', ')}`);
+  }
 }
 
-/** Map a MELCloud fan speed index to the coarse Matter {@link FanControl.FanMode}. */
-function fanSpeedToMode(fanSpeed: number, max: number): FanControl.FanMode {
+/** Map a MELCloud fan speed index (0 = auto) to the coarse Matter {@link FanControl.FanMode}. */
+function fanSpeedToMode(fanSpeed: number): FanControl.FanMode {
   if (fanSpeed <= 0) return FanControl.FanMode.Auto;
-  if (fanSpeed <= Math.ceil(max / 3)) return FanControl.FanMode.Low;
-  if (fanSpeed <= Math.ceil((2 * max) / 3)) return FanControl.FanMode.Medium;
+  if (fanSpeed <= 1) return FanControl.FanMode.Low;
+  if (fanSpeed <= 3) return FanControl.FanMode.Medium;
   return FanControl.FanMode.High;
 }
 
-/** Map a Matter {@link FanControl.FanMode} back to a MELCloud fan speed index. */
+/**
+ * Map a Matter {@link FanControl.FanMode} back to a MELCloud fan speed index.
+ * Low = 1, Medium = 3, High = max, Auto/Smart = 0. "Off" is handled by callers
+ * as a power-off and never reaches this function.
+ */
 function fanModeToSpeed(mode: FanControl.FanMode, max: number): number {
   switch (mode) {
-    case FanControl.FanMode.Off:
-      return 0;
     case FanControl.FanMode.Low:
       return 1;
     case FanControl.FanMode.Medium:
-      return Math.max(1, Math.ceil(max / 2));
+      return Math.min(3, max);
     case FanControl.FanMode.High:
     case FanControl.FanMode.On:
       return max;
     default:
       return 0; // Auto / Smart
   }
+}
+
+/** Convert a MELCloud speed index (0..max) to a 0-100 percentage for the FanControl percent attributes. */
+function speedToPercent(fanSpeed: number, max: number): number {
+  if (fanSpeed <= 0 || max <= 0) return 0;
+  return Math.round((Math.min(fanSpeed, max) / max) * 100);
+}
+
+/** Convert a 0-100 percentage to the nearest MELCloud speed index (1..max, or 0 when zero). */
+function percentToSpeed(percent: number, max: number): number {
+  if (percent <= 0 || max <= 0) return 0;
+  return Math.max(1, Math.min(max, Math.round((percent / 100) * max)));
 }

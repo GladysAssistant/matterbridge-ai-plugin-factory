@@ -10,7 +10,7 @@
 
 import type { AnsiLogger } from 'matterbridge/logger';
 
-import type { AtaMode, AtaPatch, MelcloudClient, MelcloudDevice } from './types.js';
+import type { AtaMode, AtaPatch, DeviceInfo, MelcloudClient, MelcloudDevice } from './types.js';
 
 const BASE_URL = 'https://app.melcloud.com/Mitsubishi.Wifi.Client';
 const APP_VERSION = '1.38.4.0';
@@ -45,6 +45,7 @@ interface ClassicListEntry {
 
 interface ClassicBuilding {
   ID: number;
+  Name?: string;
   Structure: {
     Devices: ClassicListEntry[];
     Areas: { Devices: ClassicListEntry[] }[];
@@ -52,8 +53,19 @@ interface ClassicBuilding {
   };
 }
 
+interface ClassicUnit {
+  Model?: string;
+  SerialNumber?: string;
+  UnitType?: string;
+  IndoorUnit?: boolean;
+}
+
 function num(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
 /** Client for the legacy MELCloud (Classic) cloud API. */
@@ -89,7 +101,7 @@ export class ClassicClient implements MelcloudClient {
     const devices: MelcloudDevice[] = [];
     for (const building of buildings) {
       for (const entry of collectEntries(building)) {
-        devices.push(this.#normalize(entry, building.ID));
+        devices.push(await this.#normalize(entry, building));
       }
     }
     return devices;
@@ -135,28 +147,39 @@ export class ClassicClient implements MelcloudClient {
     await this.#request('POST', '/Device/SetAta', undefined, body);
   }
 
-  #normalize(entry: ClassicListEntry, buildingId: number): MelcloudDevice {
+  async #normalize(entry: ClassicListEntry, building: ClassicBuilding): Promise<MelcloudDevice> {
     const id = `classic-${String(entry.DeviceID)}`;
-    this.#buildingByDevice.set(id, buildingId);
+    this.#buildingByDevice.set(id, building.ID);
     const serial = entry.SerialNumber ?? String(entry.DeviceID);
     const name = entry.DeviceName || `Device ${String(entry.DeviceID)}`;
     if (entry.Type !== DEVICE_TYPE.ata) {
       const type = entry.Type === DEVICE_TYPE.atw ? 'atw' : 'unknown';
       return { id, name, serial, type, supported: false };
     }
-    const d = entry.Device ?? {};
+
+    // The /User/ListDevices payload is a stale snapshot. Fetch the live device
+    // record so initial values (power, temperatures, mode, fan, vanes) match the
+    // web app instead of defaulting to "off".
+    let d: Record<string, unknown> = entry.Device ?? {};
+    try {
+      d = (await this.#request('GET', `/Device/Get?id=${String(entry.DeviceID)}&buildingID=${String(building.ID)}`)) as Record<string, unknown>;
+    } catch (error) {
+      this.log.debug(`MELCloud Classic: falling back to list snapshot for "${name}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+
     return {
       id,
       name,
       serial,
       type: 'ata',
       supported: true,
+      info: buildInfo(building, serial, d, entry.Device),
       ata: {
         power: Boolean(d.Power),
         roomTemperature: num(d.RoomTemperature, 20),
         setTemperature: num(d.SetTemperature, 21),
         mode: CLASSIC_TO_MODE[num(d.OperationMode, 8)] ?? 'auto',
-        fanSpeed: num(d.FanSpeed ?? d.SetFanSpeed, 0),
+        fanSpeed: num(d.SetFanSpeed ?? d.FanSpeed, 0),
         numberOfFanSpeeds: num(d.NumberOfFanSpeeds, 5),
         vaneVerticalSwing: num(d.VaneVerticalDirection ?? d.VaneVertical) === VANE_VERTICAL_SWING,
         vaneHorizontalSwing: num(d.VaneHorizontalDirection ?? d.VaneHorizontal) === VANE_HORIZONTAL_SWING,
@@ -179,6 +202,22 @@ export class ClassicClient implements MelcloudClient {
     if (!response.ok) throw new Error(`MELCloud Classic ${method} ${path} failed (${String(response.status)})`);
     return response.json();
   }
+}
+
+function buildInfo(building: ClassicBuilding, serial: string, live: Record<string, unknown>, listDevice?: Record<string, unknown>): DeviceInfo {
+  const units = (Array.isArray(live.Units) ? live.Units : Array.isArray(listDevice?.Units) ? listDevice.Units : []) as ClassicUnit[];
+  const indoor = units.find((u) => u.IndoorUnit === true || u.UnitType === 'IDU');
+  const outdoor = units.find((u) => u.IndoorUnit === false || u.UnitType === 'ODU');
+  return {
+    buildingName: str(building.Name),
+    acModel: str(indoor?.Model) ?? str(live.Model),
+    acSerial: str(indoor?.SerialNumber) ?? serial,
+    outdoorModel: str(outdoor?.Model),
+    outdoorSerial: str(outdoor?.SerialNumber),
+    wifiModel: str(live.AdaptorType ?? live.WifiAdapterModel),
+    wifiSerial: str(live.MacAddress ?? live.WifiSerialNumber),
+    macAddress: str(live.MacAddress),
+  };
 }
 
 function collectEntries(building: ClassicBuilding): ClassicListEntry[] {
