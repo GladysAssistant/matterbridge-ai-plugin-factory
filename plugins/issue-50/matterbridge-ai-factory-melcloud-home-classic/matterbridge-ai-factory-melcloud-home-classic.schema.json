@@ -1,0 +1,76 @@
+{
+  "title": "MELCloud Home & Classic",
+  "description": "matterbridge-ai-factory-melcloud-home-classic v. 1.0.0",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "application": {
+      "title": "MELCloud Application",
+      "description": "Choose the application your account is registered with. An account configured with one application cannot be used with the other.",
+      "type": "string",
+      "oneOf": [
+        { "const": "classic", "title": "MELCloud (Classic)" },
+        { "const": "home", "title": "MELCloud Home" }
+      ],
+      "default": "classic"
+    },
+    "username": {
+      "title": "Username (email)",
+      "description": "The email address of your MELCloud / MELCloud Home account.",
+      "type": "string"
+    },
+    "password": {
+      "title": "Password",
+      "description": "The password of your MELCloud / MELCloud Home account.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "pollInterval": {
+      "title": "Poll interval (seconds)",
+      "description": "How often device states are refreshed from the cloud. Minimum 30 seconds.",
+      "type": "number",
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown. Only for debugging purposes.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

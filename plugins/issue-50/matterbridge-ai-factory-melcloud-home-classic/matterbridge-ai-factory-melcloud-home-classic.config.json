@@ -1,0 +1,12 @@
+{
+  "name": "matterbridge-ai-factory-melcloud-home-classic",
+  "type": "DynamicPlatform",
+  "application": "classic",
+  "username": "",
+  "password": "",
+  "pollInterval": 60,
+  "whiteList": [],
+  "blackList": [],
+  "debug": false,
+  "unregisterOnShutdown": false
+}
