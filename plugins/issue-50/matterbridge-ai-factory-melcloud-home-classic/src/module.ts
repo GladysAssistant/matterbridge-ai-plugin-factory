@@ -174,13 +174,20 @@ export class MelcloudPlatform extends MatterbridgeDynamicPlatform {
     const ata = device.ata;
     if (!ata) return;
 
+    // Matterbridge derives the Matter uniqueId (used by controllers such as
+    // Gladys to recognize a device across restarts) from
+    // md5(deviceName + serialNumber + vendorName + productName). Feed it ONLY
+    // immutable values: device.id never changes, and a constant product name.
+    // The real serial/model are best-effort API metadata that flip between
+    // fetches (e.g. acModel is often undefined), which previously changed the
+    // uniqueId on every restart and made the device reappear as "new".
     const endpoint = new MatterbridgeEndpoint(airConditioner, { id: device.id })
       .createDefaultBridgedDeviceBasicInformationClusterServer(
         device.name,
-        device.serial,
+        device.id,
         this.matterbridge.aggregatorVendorId,
         'Mitsubishi Electric',
-        device.info?.acModel ?? 'MELCloud ATA',
+        'MELCloud ATA',
       )
       .createDefaultIdentifyClusterServer()
       .createDefaultOnOffClusterServer(ata.power)

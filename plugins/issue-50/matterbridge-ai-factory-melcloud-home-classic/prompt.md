@@ -1,19 +1,21 @@
 Fix bug in matterbridge-ai-factory-melcloud-home-classic. Be concise, write code not explanations.
 
 Bug report:
-It seems that there is an issue with the update of the devices in Gladys.
-Everytime I disable the plugin in matterbridge, then enable it again, I have new endpoints for the devices, which is normal, with same serial number and unique ID than previous devices.
-But in Gladys I have new device to add, nothing to update : 
-<img width="896" height="612" alt="Image" src="https://github.com/user-attachments/assets/bd1b119a-a5da-443d-9ee5-a4329a85ce0a" />
+This fix doesn't work.
+I deleted all devices.
+Then added new ones.
+I turn off the melcloud plugin, restart matterbridge, turn on plugin.
+In GLadys I still have new device to add : 
+<img width="905" height="746" alt="Image" src="https://github.com/user-attachments/assets/1e20d624-2087-4ab9-ad6e-dff0ecf69904" />
 
-<img width="881" height="734" alt="Image" src="https://github.com/user-attachments/assets/9bceb212-7979-4b82-8ca0-2131d58d1a46" />
+<img width="452" height="587" alt="Image" src="https://github.com/user-attachments/assets/2421aaaa-0dbf-4f72-a766-04130ef5fda3" />
 
-<img width="1570" height="142" alt="Image" src="https://github.com/user-attachments/assets/cad4a80b-72cd-46fc-9d18-9c774ec2e6d1" />
+<img width="427" height="726" alt="Image" src="https://github.com/user-attachments/assets/7e17bb7e-c396-402c-ad54-a0542246820d" />
 
-It seems that the 4 last figures are missing in the serial number in Gladys : `9b585aff-fe3d-46b9-a853-bd30c359` instead of `9b585aff-fe3d-46b9-a853-bd30c3597910`.
+<img width="1572" height="287" alt="Image" src="https://github.com/user-attachments/assets/965f53ce-cc0b-4563-8bf7-e94aae18a9ca" />
 
-Could you check that and find out why it is considered as new device instead of device to update ?
-Don't change the rest of the code as I haven't done new tests yet.
+Please find another solution to be sure that those "new" devices are in fact the same as the previous ones saved in Gladys.
+
 
 Fix the code, then test:
 ```bash
