@@ -92,8 +92,13 @@ export class EnphaseClient {
   async authenticate(): Promise<string> {
     if (this.options.installerUser) return '';
     if (this.token) return this.token;
-    const { enlightenEmail, enlightenPassword, serialNumber } = this.options;
+    const { enlightenEmail, enlightenPassword } = this.options;
     if (!enlightenEmail || !enlightenPassword) throw new Error('Enlighten email/password or a token is required for firmware >= 7.0');
+
+    // The Enlighten token must be scoped to the gateway's real serial number, otherwise
+    // every local API call returns 401. Discover it from the unauthenticated /info.xml when
+    // the user did not configure one (the "envoy" placeholder produces an invalid token).
+    const serialNumber = await this.resolveSerialNumber();
 
     // Step 1: login to Enlighten to retrieve a session id.
     const loginBody = `user[email]=${encodeURIComponent(enlightenEmail)}&user[password]=${encodeURIComponent(enlightenPassword)}`;
@@ -116,6 +121,28 @@ export class EnphaseClient {
     this.token = token;
     this.log.info('Obtained Enlighten JWT token for the Envoy gateway');
     return token;
+  }
+
+  /**
+   * Resolve the gateway serial number, discovering it from the unauthenticated
+   * /info.xml endpoint when it is missing or set to the "envoy" placeholder.
+   *
+   * @returns {Promise<string>} The serial number to scope the Enlighten token to.
+   */
+  private async resolveSerialNumber(): Promise<string> {
+    const configured = this.options.serialNumber;
+    if (configured && configured !== 'envoy') return configured;
+    try {
+      const res = await httpsRequest(`https://${this.options.envoyIp}/info.xml`);
+      const match = /<sn>([^<]+)<\/sn>/i.exec(res.body);
+      if (match?.[1]) {
+        this.log.info(`Discovered Envoy serial number ${match[1]} from /info.xml`);
+        return match[1].trim();
+      }
+    } catch (error) {
+      this.log.debug(`Failed to read /info.xml for serial discovery: ${(error as Error).message}`);
+    }
+    throw new Error('Envoy serial number is required: set "serialNumber" in the configuration');
   }
 
   /** Authorization header for local API calls. */
