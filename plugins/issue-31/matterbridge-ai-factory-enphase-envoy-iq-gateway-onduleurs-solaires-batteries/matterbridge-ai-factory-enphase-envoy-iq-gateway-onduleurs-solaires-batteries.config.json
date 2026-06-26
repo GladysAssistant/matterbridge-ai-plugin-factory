@@ -8,6 +8,7 @@
   "token": "",
   "installerUser": false,
   "hasBattery": false,
+  "showInverters": false,
   "pollInterval": 30,
   "unregisterOnShutdown": false,
   "debug": false

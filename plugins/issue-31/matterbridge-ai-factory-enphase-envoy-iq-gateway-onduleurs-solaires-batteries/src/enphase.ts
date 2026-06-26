@@ -191,7 +191,13 @@ export class EnphaseClient {
 
     const production = await this.getJson<EnvoyProductionJson>('/production.json?details=1');
     if (production) {
-      const prod = (production.production ?? []).find((p) => p.type === 'eim') ?? (production.production ?? []).find((p) => p.type === 'inverters');
+      const entries = production.production ?? [];
+      // The "eim" entry is only populated when a production CT meter is installed (activeCount > 0).
+      // Without it, eim reports wNow/whLifetime as 0, so fall back to the "inverters" entry which
+      // always carries the real micro-inverter production totals. Picking eim blindly yields 0 kWh.
+      const eim = entries.find((p) => p.type === 'eim');
+      const inverters = entries.find((p) => p.type === 'inverters');
+      const prod = eim && num(eim.activeCount) > 0 ? eim : (inverters ?? eim);
       if (prod) {
         data.productionPowerW = num(prod.wNow);
         data.productionTodayWh = num(prod.whToday);

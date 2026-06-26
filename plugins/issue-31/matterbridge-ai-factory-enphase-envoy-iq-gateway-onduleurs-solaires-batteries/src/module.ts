@@ -24,6 +24,7 @@ export type EnphasePlatformConfig = BasePlatformConfig & {
   token?: string;
   installerUser?: boolean;
   hasBattery?: boolean;
+  showInverters?: boolean;
   pollInterval?: number;
 };
 
@@ -156,14 +157,17 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
     await this.production?.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(data.productionPowerW * 1000), this.log);
     await this.production?.updateAttribute('ElectricalEnergyMeasurement', 'cumulativeEnergyExported', { energy: Math.round(data.productionLifetimeWh * 1000) }, this.log);
 
-    // Per micro-inverter production panels.
-    for (const inv of data.inverters) {
-      let panel = this.panels.get(inv.serial);
-      if (!panel && this.production) {
-        panel = this.production.addPanel(`Inv ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: 0x0, label: inv.serial }, null, null, inv.powerW);
-        this.panels.set(inv.serial, panel);
+    // Per micro-inverter production panels (opt-in: each panel is a child production sensor and
+    // duplicates the aggregate Solar Production reading when enabled, so it is off by default).
+    if ((this.config as EnphasePlatformConfig).showInverters) {
+      for (const inv of data.inverters) {
+        let panel = this.panels.get(inv.serial);
+        if (!panel && this.production) {
+          panel = this.production.addPanel(`Inverter ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: 0x0, label: inv.serial }, null, null, inv.powerW);
+          this.panels.set(inv.serial, panel);
+        }
+        await panel?.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(inv.powerW * 1000), this.log);
       }
-      await panel?.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(inv.powerW * 1000), this.log);
     }
 
     // Net grid consumption.

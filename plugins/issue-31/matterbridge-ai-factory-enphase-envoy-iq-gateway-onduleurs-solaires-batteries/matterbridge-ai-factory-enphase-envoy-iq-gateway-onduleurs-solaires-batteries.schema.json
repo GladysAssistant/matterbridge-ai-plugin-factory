@@ -43,6 +43,11 @@
       "type": "boolean",
       "default": false
     },
+    "showInverters": {
+      "description": "Expose each micro-inverter as a child panel (duplicates the aggregate Solar Production reading)",
+      "type": "boolean",
+      "default": false
+    },
     "pollInterval": {
       "description": "Polling interval in seconds (minimum 15)",
       "type": "number",

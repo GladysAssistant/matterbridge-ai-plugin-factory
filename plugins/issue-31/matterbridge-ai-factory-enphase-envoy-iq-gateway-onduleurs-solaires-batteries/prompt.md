@@ -1,23 +1,20 @@
 Fix bug in matterbridge-ai-factory-enphase-envoy-iq-gateway-onduleurs-solaires-batteries. Be concise, write code not explanations.
 
 Bug report:
-I have installed the plugin and it has installed correctly.
+Your latest fix has resolved the connection issue.
 
-I have filled in the following fields:
+I now have the following devices:
 
-- envoyIp
-- enlightenEmail
-- enlightenPassword
+<img width="2382" height="366" alt="Image" src="https://github.com/user-attachments/assets/a66a3789-7e58-448b-a67c-8ffed971c761" />
 
-My Enphase base firmware version is 8.3.5528 and the details are correct, as it works on my mobile app and HA.
+But I doesn't found the same names as in my HA integration.
 
-I am getting the following error in the logs after configuration.
-```
-warn[13:17:51.364][Matterbridge plugin for Enphase Envoy / IQ Gateway (solar inverters, batteries) - read-only sensors]Local API returned 401 for /production.json?details=1; token may be expired
-warn[13:17:51.375][Matterbridge plugin for Enphase Envoy / IQ Gateway (solar inverters, batteries) - read-only sensors]Local API returned 401 for /api/v1/production/inverters; token may be expired
-warn[13:17:51.389][Matterbridge plugin for Enphase Envoy / IQ Gateway (solar inverters, batteries) - read-only sensors]Local API returned 401 for /ivp/livedata/status; token may be expired
-warn[13:17:51.400][Matterbridge plugin for Enphase Envoy / IQ Gateway (solar inverters, batteries) - read-only sensors]Local API returned 401 for /home.json; token may be expired
-```
+I’ve found a couple of issues :
+- Solar Production value is 0 kwh
+- Twice Online Solar Production
+- Several Gateway Network
+
+Explain me why please.
 
 Fix the code, then test:
 ```bash
