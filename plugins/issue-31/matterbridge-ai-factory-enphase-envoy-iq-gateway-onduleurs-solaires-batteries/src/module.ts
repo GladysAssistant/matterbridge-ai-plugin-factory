@@ -72,8 +72,39 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
     const config = this.config as EnphasePlatformConfig;
     const serial = config.serialNumber ?? 'envoy';
 
-    // Solar production device with per micro-inverter child panels added lazily on first poll.
+    // Build the API client first so micro-inverters can be enumerated before registration.
+    if (config.envoyIp) {
+      this.client = new EnphaseClient(
+        {
+          envoyIp: config.envoyIp,
+          serialNumber: serial,
+          enlightenEmail: config.enlightenEmail,
+          enlightenPassword: config.enlightenPassword,
+          token: config.token,
+          installerUser: config.installerUser,
+        },
+        this.log,
+      );
+    } else {
+      this.log.warn('No "envoyIp" configured: devices are registered but will not be updated with live data.');
+    }
+
+    // Solar production device. Per micro-inverter child panels must be added BEFORE the device is
+    // registered: child endpoints cannot be attached once the device is live on the Matter server.
     this.production = new SolarPower('Solar Production', `${serial}-prod`);
+    if (this.client && config.showInverters) {
+      try {
+        await this.client.authenticate();
+        const data = await this.client.poll();
+        for (const inv of data.inverters) {
+          const panel = this.production.addPanel(`Inverter ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: 0x0, label: inv.serial }, null, null, inv.powerW);
+          this.panels.set(inv.serial, panel);
+        }
+        this.log.info(`Added ${this.panels.size} micro-inverter panel(s) to Solar Production`);
+      } catch (error) {
+        this.log.error(`Failed to enumerate micro-inverters: ${(error as Error).message}`);
+      }
+    }
     await this.registerDevice(this.production);
 
     // Net grid consumption as a generic electrical sensor.
@@ -107,23 +138,6 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
       .createDefaultBridgedDeviceBasicInformationClusterServer('Gateway Network', `${serial}-net`, this.matterbridge.aggregatorVendorId, 'Enphase', 'Envoy Network Status', 1, '1.0.0')
       .addRequiredClusterServers();
     await this.registerDevice(this.network);
-
-    // Build the API client only when an Envoy address is configured.
-    if (config.envoyIp) {
-      this.client = new EnphaseClient(
-        {
-          envoyIp: config.envoyIp,
-          serialNumber: serial,
-          enlightenEmail: config.enlightenEmail,
-          enlightenPassword: config.enlightenPassword,
-          token: config.token,
-          installerUser: config.installerUser,
-        },
-        this.log,
-      );
-    } else {
-      this.log.warn('No "envoyIp" configured: devices are registered but will not be updated with live data.');
-    }
   }
 
   override async onConfigure(): Promise<void> {
@@ -153,19 +167,19 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
       return;
     }
 
-    // Production power and energy (energy reported as exported energy).
+    // Production power and lifetime energy. The energy is written to BOTH the exported and imported
+    // cumulative-energy attributes: a solar source exports its generation, but Matter controllers
+    // (e.g. Home Assistant) often surface the "Solar Production" energy from the imported sensor,
+    // which would otherwise stay at 0 kWh.
+    const productionEnergyMWh = Math.round(data.productionLifetimeWh * 1000);
     await this.production?.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(data.productionPowerW * 1000), this.log);
-    await this.production?.updateAttribute('ElectricalEnergyMeasurement', 'cumulativeEnergyExported', { energy: Math.round(data.productionLifetimeWh * 1000) }, this.log);
+    await this.production?.updateAttribute('ElectricalEnergyMeasurement', 'cumulativeEnergyExported', { energy: productionEnergyMWh }, this.log);
+    await this.production?.updateAttribute('ElectricalEnergyMeasurement', 'cumulativeEnergyImported', { energy: productionEnergyMWh }, this.log);
 
-    // Per micro-inverter production panels (opt-in: each panel is a child production sensor and
-    // duplicates the aggregate Solar Production reading when enabled, so it is off by default).
+    // Per micro-inverter production panels (child endpoints created up-front in onStart).
     if ((this.config as EnphasePlatformConfig).showInverters) {
       for (const inv of data.inverters) {
-        let panel = this.panels.get(inv.serial);
-        if (!panel && this.production) {
-          panel = this.production.addPanel(`Inverter ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: 0x0, label: inv.serial }, null, null, inv.powerW);
-          this.panels.set(inv.serial, panel);
-        }
+        const panel = this.panels.get(inv.serial);
         await panel?.updateAttribute('ElectricalPowerMeasurement', 'activePower', Math.round(inv.powerW * 1000), this.log);
       }
     }
