@@ -70,7 +70,9 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
     await this.clearSelect();
 
     const config = this.config as EnphasePlatformConfig;
-    const serial = config.serialNumber ?? 'envoy';
+    // A blank serialNumber must not leak into device serials/uniqueIds: an empty string passes "??"
+    // and yields degenerate ids like "EnvoyConsumption-", which controllers (e.g. Gladys) drop.
+    const serial = config.serialNumber?.trim() || 'envoy';
 
     // Build the API client first so micro-inverters can be enumerated before registration.
     if (config.envoyIp) {
@@ -96,9 +98,14 @@ export class EnphasePlatform extends MatterbridgeDynamicPlatform {
       try {
         await this.client.authenticate();
         const data = await this.client.poll();
+        // Each child panel needs a UNIQUE semantic tag. Sibling endpoints sharing the same device
+        // type and identical tagList violate Matter disambiguation, so every panel but the first is
+        // dropped and the inverters disappear. Use the Number namespace (0x07) with an incrementing tag.
+        let panelIndex = 0;
         for (const inv of data.inverters) {
-          const panel = this.production.addPanel(`Inverter ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: 0x0, label: inv.serial }, null, null, inv.powerW);
+          const panel = this.production.addPanel(`Inverter ${inv.serial}`, { mfgCode: null, namespaceId: 0x07, tag: panelIndex, label: inv.serial }, null, null, inv.powerW);
           this.panels.set(inv.serial, panel);
+          panelIndex++;
         }
         this.log.info(`Added ${this.panels.size} micro-inverter panel(s) to Solar Production`);
       } catch (error) {

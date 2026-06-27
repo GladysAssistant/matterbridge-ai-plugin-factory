@@ -87,10 +87,13 @@ export class EnphaseClient {
   /**
    * Obtain a JWT token from the Enlighten cloud (firmware >= 7.0).
    *
+   * @param {boolean} [force] - When true, discard the cached token and request a fresh one.
    * @returns {Promise<string>} The bearer token used for local API calls.
    */
-  async authenticate(): Promise<string> {
+  async authenticate(force = false): Promise<string> {
     if (this.options.installerUser) return '';
+    // A stale/expired token makes every local API call return 401. Drop it so a new one is minted.
+    if (force) this.token = undefined;
     if (this.token) return this.token;
     const { enlightenEmail, enlightenPassword } = this.options;
     if (!enlightenEmail || !enlightenPassword) throw new Error('Enlighten email/password or a token is required for firmware >= 7.0');
@@ -150,13 +153,28 @@ export class EnphaseClient {
     return this.token ? { Authorization: `Bearer ${this.token}` } : {};
   }
 
-  /** GET a JSON local endpoint, returning undefined on any failure. */
-  private async getJson<T>(path: string): Promise<T | undefined> {
+  /**
+   * GET a JSON local endpoint, returning undefined on any failure.
+   *
+   * On a 401 the cached Enlighten token is refreshed once and the request retried, because an
+   * expired token otherwise makes every poll silently return empty data.
+   *
+   * @param {string} path - The local API path to request.
+   * @param {boolean} [allowReauth] - Whether a 401 should trigger a token refresh + retry.
+   * @returns {Promise<T | undefined>} The parsed JSON body, or undefined on failure.
+   */
+  private async getJson<T>(path: string, allowReauth = true): Promise<T | undefined> {
     try {
       const res = await httpsRequest(`https://${this.options.envoyIp}${path}`, { headers: this.authHeaders() });
-      if (res.status === 401) {
-        this.log.warn(`Local API returned 401 for ${path}; token may be expired`);
-        return undefined;
+      if (res.status === 401 && allowReauth) {
+        this.log.warn(`Local API returned 401 for ${path}; refreshing the Enlighten token and retrying`);
+        try {
+          await this.authenticate(true);
+        } catch (error) {
+          this.log.debug(`Token refresh failed: ${(error as Error).message}`);
+          return undefined;
+        }
+        return this.getJson<T>(path, false);
       }
       if (res.status >= 400) {
         this.log.debug(`Local API ${path} returned status ${res.status}`);
@@ -229,6 +247,7 @@ export class EnphaseClient {
       if (live.meters?.soc !== undefined) data.batterySoc = num(live.meters.soc);
       if (live.meters?.storage?.agg_p_mw !== undefined) data.batteryPowerW = num(live.meters.storage.agg_p_mw) / 1000;
       if (live.connection?.sc_stream === 'enabled' || live.connection?.mqtt_state === 'connected') data.networkUp = true;
+      if (typeof live.cpld_temperature === 'number') data.gatewayTempC = live.cpld_temperature;
     }
 
     // Home/gateway info for temperature and network status (best effort).
@@ -236,7 +255,9 @@ export class EnphaseClient {
     if (home) {
       if (home.network?.web_comm === true || home.network?.ethernet?.carrier === true) data.networkUp = true;
       if (typeof home.network?.interfaces?.[0]?.carrier === 'boolean') data.networkUp = data.networkUp || home.network.interfaces[0].carrier;
-      if (typeof home.cpld_temperature === 'number') data.gatewayTempC = home.cpld_temperature;
+      // Different firmwares expose the gateway temperature under slightly different keys.
+      const homeTemp = home.cpld_temperature ?? home.comm?.cpld_temperature ?? home.temperature;
+      if (typeof homeTemp === 'number') data.gatewayTempC = homeTemp;
     }
 
     return data;
@@ -268,10 +289,13 @@ interface EnvoyProductionJson {
 interface EnvoyLiveData {
   connection?: { mqtt_state?: string; sc_stream?: string };
   meters?: { soc?: number; storage?: { agg_p_mw?: number } };
+  cpld_temperature?: number;
 }
 
 interface EnvoyHomeJson {
   cpld_temperature?: number;
+  temperature?: number;
+  comm?: { cpld_temperature?: number };
   network?: {
     web_comm?: boolean;
     ethernet?: { carrier?: boolean };
