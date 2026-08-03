@@ -1,8 +1,20 @@
 # 🏭 Matterbridge AI Plugin Factory
 
-An automated system that uses AI (Claude) to generate [Matterbridge](https://github.com/Luligu/matterbridge) plugins from GitHub issue requests.
+> ## ⛔ This project is no longer maintained
+>
+> **The plugin factory has been shut down and this repository is now archived.**
+>
+> We decided to stop the factory in favour of the **external integrations built directly into [Gladys Assistant](https://gladysassistant.com)**, which give a better and more sustainable experience than AI-generated Matterbridge plugins.
+>
+> What this means:
+>
+> - The factory is **no longer running**: new issues are **not** processed, and existing requests will not be generated, fixed or published.
+> - Plugins that were already generated remain available in the repository branches and releases, **as-is and unsupported**.
+> - The code and documentation below are kept **for reference / historical purposes only**.
+>
+> 👉 If you want to connect a device or service to Gladys, use the built-in external integrations in Gladys instead.
 
-## 🌟 Overview
+## 🌟 Overview (archived)
 
 This factory automates the creation of Matterbridge plugins that bring Matter compatibility to non-Matter smart home devices. Users submit plugin requests via GitHub Issues, and an AI agent (powered by Claude) analyzes existing integrations and generates working plugins.
 
@@ -30,6 +42,8 @@ This factory automates the creation of Matterbridge plugins that bring Matter co
 ```
 
 ## 🚀 Quick Start
+
+> ⛔ **Not applicable anymore** — the factory is stopped, plugin requests are no longer accepted or processed. The steps below are kept for reference.
 
 ### For Users (Requesting a Plugin)
 
