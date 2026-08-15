@@ -1,0 +1,68 @@
+{
+  "title": "Matterbridge MELCloud plugin",
+  "description": "matterbridge-ai-factory-melcloud - Mitsubishi MELCloud air conditioner integration",
+  "type": "object",
+  "required": ["username", "password"],
+  "properties": {
+    "name": {
+      "title": "Plugin Name",
+      "description": "Plugin name",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "type": {
+      "title": "Plugin Type",
+      "description": "Plugin type",
+      "type": "string",
+      "readOnly": true,
+      "ui:widget": "hidden"
+    },
+    "username": {
+      "title": "MELCloud Username",
+      "description": "MELCloud account email.",
+      "type": "string"
+    },
+    "password": {
+      "title": "MELCloud Password",
+      "description": "MELCloud account password.",
+      "type": "string",
+      "ui:widget": "password"
+    },
+    "pollIntervalSeconds": {
+      "title": "Poll Interval (seconds)",
+      "description": "How often to refresh device state from MELCloud.",
+      "type": "integer",
+      "minimum": 30,
+      "default": 60
+    },
+    "whiteList": {
+      "title": "White List",
+      "description": "Only the devices in the list will be exposed. If the list is empty, all the devices will be exposed.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "blackList": {
+      "title": "Black List",
+      "description": "The devices in the list will not be exposed. If the list is empty, no devices will be excluded.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true,
+      "selectFrom": "name"
+    },
+    "debug": {
+      "title": "Enable Debug",
+      "description": "Enable debug mode for the plugin.",
+      "type": "boolean",
+      "default": false
+    },
+    "unregisterOnShutdown": {
+      "title": "Unregister On Shutdown",
+      "description": "Unregister all devices on shutdown.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
